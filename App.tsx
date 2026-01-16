@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { EditorialDocument } from './types';
 import { structureContent } from './services/geminiService';
 import DocumentPreview from './components/DocumentPreview';
@@ -10,17 +10,6 @@ const html2pdf = window.html2pdf;
 
 type PDFFormat = 'a0' | 'a2' | 'a3' | 'a4';
 
-declare global {
-  interface AIStudio {
-    hasSelectedApiKey: () => Promise<boolean>;
-    openSelectKey: () => Promise<void>;
-  }
-  interface Window {
-    // Removed readonly to match potentially existing declarations and avoid modifier conflict
-    aistudio: AIStudio;
-  }
-}
-
 const App: React.FC = () => {
   const [input, setInput] = useState('');
   const [reference, setReference] = useState('');
@@ -30,27 +19,7 @@ const App: React.FC = () => {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedFormat, setSelectedFormat] = useState<PDFFormat>('a4');
-  const [hasKey, setHasKey] = useState<boolean>(true); // Inicializa assumindo que tem, checa no useEffect
   const docRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const checkKey = async () => {
-      if (window.aistudio && !process.env.API_KEY) {
-        const selected = await window.aistudio.hasSelectedApiKey();
-        setHasKey(selected);
-      }
-    };
-    checkKey();
-  }, []);
-
-  const handleOpenKey = async () => {
-    if (window.aistudio) {
-      await window.aistudio.openSelectKey();
-      // Seguindo diretriz: assumir sucesso imediato após disparar o diálogo
-      setHasKey(true);
-      setError(null);
-    }
-  };
 
   const handleGenerate = useCallback(async () => {
     if (!input.trim()) return;
@@ -62,13 +31,7 @@ const App: React.FC = () => {
       setDoc(structuredDoc);
     } catch (err: any) {
       console.error(err);
-      const msg = err.message || "";
-      if (msg.includes("API Key must be set") || msg.includes("Requested entity was not found")) {
-        setHasKey(false);
-        setError("Sua sessão expirou ou a chave não foi detectada. Por favor, reative sua API Key.");
-      } else {
-        setError(`Erro na geração: ${err.message || 'Verifique sua conexão e tente novamente.'}`);
-      }
+      setError(`Erro na geração: ${err.message || 'Verifique sua conexão e tente novamente.'}`);
     } finally {
       setLoading(false);
     }
@@ -130,41 +93,6 @@ const App: React.FC = () => {
     setDoc(null);
     setError(null);
   };
-
-  // TELA DE SETUP OBRIGATÓRIA SE NÃO HOUVER CHAVE
-  if (!hasKey) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-6 text-white text-center">
-        <div className="max-w-md w-full space-y-12 py-20 px-10 border border-gray-800 bg-zinc-950 shadow-2xl">
-          <div className="space-y-4">
-            <h1 className="serif text-4xl italic font-bold tracking-tight">Setup de Elite</h1>
-            <div className="h-px w-12 bg-white mx-auto opacity-20"></div>
-            <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Arquitetura de Conteúdo Enterprise</p>
-          </div>
-          
-          <div className="space-y-6">
-            <p className="text-sm text-gray-400 leading-relaxed font-light">
-              Para acessar o motor de inteligência e gerar documentos de alta fidelidade, você precisa selecionar uma <strong>API Key de um projeto pago</strong> no seu navegador.
-            </p>
-            <button 
-              onClick={handleOpenKey}
-              className="w-full py-5 bg-white text-black text-[11px] font-bold uppercase tracking-[0.4em] hover:bg-gray-200 transition-all shadow-white/5 shadow-lg"
-            >
-              Ativar Chave de API
-            </button>
-            <a 
-              href="https://ai.google.dev/gemini-api/docs/billing" 
-              target="_blank" 
-              rel="noreferrer"
-              className="block text-[9px] uppercase tracking-widest text-zinc-600 underline hover:text-white transition-colors"
-            >
-              Consultar Faturamento e Cotas
-            </a>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-[#fcfcfc]">
