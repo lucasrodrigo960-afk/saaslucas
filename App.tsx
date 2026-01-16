@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { EditorialDocument } from './types';
 import { structureContent } from './services/geminiService';
 import DocumentPreview from './components/DocumentPreview';
@@ -10,6 +10,18 @@ const html2pdf = window.html2pdf;
 
 type PDFFormat = 'a0' | 'a2' | 'a3' | 'a4';
 
+// Use a separate interface for AIStudio to match existing global types and avoid modifier mismatches
+declare global {
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+  interface Window {
+    // Adding readonly to match typical browser environment modifiers for pre-configured objects
+    readonly aistudio: AIStudio;
+  }
+}
+
 const App: React.FC = () => {
   const [input, setInput] = useState('');
   const [reference, setReference] = useState('');
@@ -19,7 +31,26 @@ const App: React.FC = () => {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedFormat, setSelectedFormat] = useState<PDFFormat>('a4');
+  const [needsKey, setNeedsKey] = useState(false);
   const docRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const checkKey = async () => {
+      // Check whether an API key has been selected using the platform helper
+      if (window.aistudio && !(await window.aistudio.hasSelectedApiKey()) && !process.env.API_KEY) {
+        setNeedsKey(true);
+      }
+    };
+    checkKey();
+  }, []);
+
+  const handleOpenKey = async () => {
+    if (window.aistudio) {
+      await window.aistudio.openSelectKey();
+      // Assume the key selection was successful after triggering the dialog to mitigate race conditions
+      setNeedsKey(false);
+    }
+  };
 
   const handleGenerate = useCallback(async () => {
     if (!input.trim()) return;
@@ -31,7 +62,14 @@ const App: React.FC = () => {
       setDoc(structuredDoc);
     } catch (err: any) {
       console.error(err);
-      setError('Erro na geração estratégica. Verifique sua conexão.');
+      const msg = err.message || "";
+      // If the request fails with an error message containing "Requested entity was not found.", reset the key selection state
+      if (msg.includes("Requested entity was not found") || msg.includes("API_KEY_INVALID") || msg.includes("API key not found")) {
+        setError("Chave de API inválida ou não encontrada. Por favor, selecione uma chave válida.");
+        if (window.aistudio) setNeedsKey(true);
+      } else {
+        setError(`Erro na geração: ${err.message || 'Verifique sua conexão e tente novamente.'}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -47,15 +85,12 @@ const App: React.FC = () => {
     const originalOverflow = document.body.style.overflow;
     
     try {
-      // 1. ATIVAR MODO PDF COM FORMATO ESPECÍFICO
       const formatClass = `pdf-mode-${selectedFormat}`;
       element.classList.add('pdf-export-mode', formatClass);
       document.body.style.overflow = 'visible';
       
-      // 2. TIMEOUT PARA REPAINT (Essencial para leitura das novas dimensões)
       await new Promise(resolve => setTimeout(resolve, 800));
 
-      // Mapeamento de larguras em pixels (96 DPI approx) para html2canvas
       const formatWidths: Record<PDFFormat, number> = {
         'a4': 794,
         'a3': 1122,
@@ -70,7 +105,7 @@ const App: React.FC = () => {
         filename: `${doc.title.toLowerCase().replace(/\s/g, '-')}-${selectedFormat}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { 
-          scale: selectedFormat === 'a0' ? 1.5 : 2, // A0 é massivo, escala 2 pode estourar memória em alguns browsers
+          scale: selectedFormat === 'a0' ? 1.2 : 2, 
           useCORS: true, 
           letterRendering: true,
           scrollX: 0,
@@ -85,14 +120,12 @@ const App: React.FC = () => {
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
       };
 
-      // 3. EXECUTAR RENDERIZAÇÃO
       await html2pdf().set(opt).from(element).save();
 
     } catch (err: any) {
       console.error('Erro no processamento do PDF:', err);
       setError(`Erro ao materializar o arquivo em ${selectedFormat.toUpperCase()}.`);
     } finally {
-      // 4. LIMPEZA
       element.classList.remove('pdf-export-mode', 'pdf-mode-a0', 'pdf-mode-a2', 'pdf-mode-a3', 'pdf-mode-a4');
       document.body.style.overflow = originalOverflow;
       setExporting(false);
@@ -129,10 +162,24 @@ const App: React.FC = () => {
       <aside className={`no-print w-full md:w-[450px] border-r border-gray-200 p-8 flex flex-col sticky top-0 h-screen overflow-y-auto bg-white z-10 ${doc ? 'hidden lg:flex' : 'flex'}`}>
         <div className="mb-12">
           <h1 className="serif text-3xl font-bold italic mb-2 tracking-tight text-black">Editorial Architect</h1>
-          <p className="text-[10px] text-gray-400 uppercase tracking-[0.4em] font-bold">PRECISION PDF V9.0 — FULL ISO RANGE</p>
+          <p className="text-[10px] text-gray-400 uppercase tracking-[0.4em] font-bold">PRECISION PDF V11.0 — ENTERPRISE GRADE</p>
         </div>
 
         <div className="flex-1 flex flex-col space-y-8">
+          {needsKey && (
+            <div className="p-6 bg-amber-50 border border-amber-200 rounded-sm space-y-4">
+              <p className="text-[10px] font-bold text-amber-800 uppercase tracking-widest">Ação Necessária</p>
+              <p className="text-xs text-amber-700 leading-relaxed">Para utilizar os modelos de alta performance, é necessário selecionar sua própria chave de API.</p>
+              <button 
+                onClick={handleOpenKey}
+                className="w-full py-3 bg-amber-600 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-amber-700 transition-colors"
+              >
+                Selecionar API Key
+              </button>
+              <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="block text-center text-[9px] text-amber-500 underline uppercase tracking-tighter">Documentação de Faturamento</a>
+            </div>
+          )}
+
           <div className="flex flex-col space-y-3">
             <button 
               onClick={() => setShowRef(!showRef)}
@@ -162,7 +209,7 @@ const App: React.FC = () => {
 
           <button
             onClick={handleGenerate}
-            disabled={loading || !input.trim()}
+            disabled={loading || !input.trim() || (needsKey && !process.env.API_KEY)}
             className={`w-full py-5 text-[11px] font-bold uppercase tracking-[0.4em] transition-all border ${
               loading 
               ? 'bg-gray-100 text-gray-400 border-gray-100 cursor-wait' 
@@ -174,7 +221,7 @@ const App: React.FC = () => {
 
           {error && (
             <div className="p-4 bg-red-50 border-l-2 border-red-500">
-              <p className="text-[10px] text-red-600 font-bold uppercase tracking-widest">{error}</p>
+              <p className="text-[10px] text-red-600 font-bold uppercase tracking-widest leading-relaxed">{error}</p>
             </div>
           )}
         </div>
@@ -229,7 +276,7 @@ const App: React.FC = () => {
               <h2 className="serif text-3xl italic font-light text-black tracking-tight leading-snug">
                 Insira o input estratégico para materializar um documento de elite.
               </h2>
-              <p className="text-xs uppercase tracking-widest text-gray-400">Agora com suporte para formatos A4, A3, A2 e A0.</p>
+              <p className="text-xs uppercase tracking-widest text-gray-400">Suporte nativo para exportação ISO A4-A0 de alta fidelidade.</p>
             </div>
           </div>
         )}

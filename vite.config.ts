@@ -5,12 +5,10 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   define: {
-    // Garante que process.env.API_KEY seja injetado como string
-    'process.env.API_KEY': JSON.stringify(process.env.API_KEY),
-    // Define um fallback para o objeto process.env para evitar erros de referência
+    'process.env.API_KEY': JSON.stringify(process.env.API_KEY || ''),
     'process.env': {
       NODE_ENV: JSON.stringify(process.env.NODE_ENV || 'production'),
-      API_KEY: JSON.stringify(process.env.API_KEY)
+      API_KEY: JSON.stringify(process.env.API_KEY || '')
     }
   },
   server: {
@@ -18,6 +16,7 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: false
+    sourcemap: false,
+    chunkSizeWarningLimit: 2000
   }
 });
