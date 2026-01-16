@@ -10,14 +10,13 @@ const html2pdf = window.html2pdf;
 
 type PDFFormat = 'a0' | 'a2' | 'a3' | 'a4';
 
-// Use a separate interface for AIStudio to match existing global types and avoid modifier mismatches
 declare global {
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
     openSelectKey: () => Promise<void>;
   }
   interface Window {
-    // Adding readonly to match typical browser environment modifiers for pre-configured objects
+    // Corrected to readonly to match existing declarations in the environment
     readonly aistudio: AIStudio;
   }
 }
@@ -36,9 +35,12 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const checkKey = async () => {
-      // Check whether an API key has been selected using the platform helper
-      if (window.aistudio && !(await window.aistudio.hasSelectedApiKey()) && !process.env.API_KEY) {
-        setNeedsKey(true);
+      // Se não houver chave no ambiente, verifica se já foi selecionada uma via aistudio
+      if (window.aistudio && !process.env.API_KEY) {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        if (!hasKey) {
+          setNeedsKey(true);
+        }
       }
     };
     checkKey();
@@ -47,13 +49,24 @@ const App: React.FC = () => {
   const handleOpenKey = async () => {
     if (window.aistudio) {
       await window.aistudio.openSelectKey();
-      // Assume the key selection was successful after triggering the dialog to mitigate race conditions
+      // Assume sucesso imediato para evitar race condition
       setNeedsKey(false);
+      setError(null);
     }
   };
 
   const handleGenerate = useCallback(async () => {
     if (!input.trim()) return;
+
+    // Bloqueio preventivo se não houver chave detectada
+    if (!process.env.API_KEY && window.aistudio) {
+      const hasKey = await window.aistudio.hasSelectedApiKey();
+      if (!hasKey) {
+        setNeedsKey(true);
+        setError("Configuração necessária: Por favor, selecione sua API Key.");
+        return;
+      }
+    }
     
     setLoading(true);
     setError(null);
@@ -63,12 +76,17 @@ const App: React.FC = () => {
     } catch (err: any) {
       console.error(err);
       const msg = err.message || "";
-      // If the request fails with an error message containing "Requested entity was not found.", reset the key selection state
-      if (msg.includes("Requested entity was not found") || msg.includes("API_KEY_INVALID") || msg.includes("API key not found")) {
-        setError("Chave de API inválida ou não encontrada. Por favor, selecione uma chave válida.");
+      
+      // Se a API retornar erro de chave ausente ou inválida, forçamos o seletor
+      if (
+        msg.includes("API key is missing") || 
+        msg.includes("API_KEY_INVALID") || 
+        msg.includes("Requested entity was not found")
+      ) {
+        setError("Chave de API não detectada ou inválida. Por favor, configure clicando no botão abaixo.");
         if (window.aistudio) setNeedsKey(true);
       } else {
-        setError(`Erro na geração: ${err.message || 'Verifique sua conexão e tente novamente.'}`);
+        setError(`Erro na geração: ${err.message || 'Verifique sua conexão.'}`);
       }
     } finally {
       setLoading(false);
@@ -167,16 +185,16 @@ const App: React.FC = () => {
 
         <div className="flex-1 flex flex-col space-y-8">
           {needsKey && (
-            <div className="p-6 bg-amber-50 border border-amber-200 rounded-sm space-y-4">
-              <p className="text-[10px] font-bold text-amber-800 uppercase tracking-widest">Ação Necessária</p>
-              <p className="text-xs text-amber-700 leading-relaxed">Para utilizar os modelos de alta performance, é necessário selecionar sua própria chave de API.</p>
+            <div className="p-6 bg-amber-50 border border-amber-200 rounded-sm space-y-4 shadow-md animate-pulse">
+              <p className="text-[10px] font-bold text-amber-800 uppercase tracking-widest">Ação Obrigatória</p>
+              <p className="text-xs text-amber-700 leading-relaxed font-medium">Você precisa selecionar uma API Key de um projeto pago para realizar tarefas de arquitetura complexa.</p>
               <button 
                 onClick={handleOpenKey}
-                className="w-full py-3 bg-amber-600 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-amber-700 transition-colors"
+                className="w-full py-3 bg-amber-600 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-amber-700 transition-colors shadow-lg"
               >
-                Selecionar API Key
+                Configurar API Key
               </button>
-              <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="block text-center text-[9px] text-amber-500 underline uppercase tracking-tighter">Documentação de Faturamento</a>
+              <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="block text-center text-[9px] text-amber-500 underline uppercase tracking-tighter">Verificar Faturamento</a>
             </div>
           )}
 
@@ -209,18 +227,18 @@ const App: React.FC = () => {
 
           <button
             onClick={handleGenerate}
-            disabled={loading || !input.trim() || (needsKey && !process.env.API_KEY)}
+            disabled={loading || !input.trim()}
             className={`w-full py-5 text-[11px] font-bold uppercase tracking-[0.4em] transition-all border ${
               loading 
               ? 'bg-gray-100 text-gray-400 border-gray-100 cursor-wait' 
-              : 'bg-black text-white border-black hover:bg-transparent hover:text-black shadow-2xl'
+              : 'bg-black text-white border-black hover:bg-transparent hover:text-black shadow-2xl active:scale-95'
             }`}
           >
-            {loading ? 'Arquitetando...' : 'Gerar Planejamento'}
+            {loading ? 'Arquitetando Conteúdo...' : 'Gerar Planejamento'}
           </button>
 
           {error && (
-            <div className="p-4 bg-red-50 border-l-2 border-red-500">
+            <div className="p-4 bg-red-50 border-l-2 border-red-500 rounded-sm">
               <p className="text-[10px] text-red-600 font-bold uppercase tracking-widest leading-relaxed">{error}</p>
             </div>
           )}

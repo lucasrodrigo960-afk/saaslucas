@@ -17,7 +17,8 @@ ESTRUTURA DE STORIES:
 - Todo dia precisa de 3 a 5 passos de stories que criem antecipação ou reforcem a mensagem do feed.`;
 
 export const structureContent = async (rawText: string, referenceContext?: string): Promise<EditorialDocument> => {
-  // Always create a new GoogleGenAI instance right before making an API call to ensure up-to-date API key usage.
+  // Inicializa o cliente com a chave disponível no momento da execução
+  // Create a new GoogleGenAI instance right before making an API call to ensure it uses the most up-to-date API key.
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   let instruction = SYSTEM_INSTRUCTION_BASE;
@@ -29,11 +30,12 @@ export const structureContent = async (rawText: string, referenceContext?: strin
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview', // Use the Pro model for complex reasoning and structured planning.
+      model: 'gemini-3-pro-preview', 
       contents: rawText,
       config: {
         systemInstruction: instruction,
         responseMimeType: "application/json",
+        thinkingConfig: { thinkingBudget: 4000 },
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -148,7 +150,6 @@ export const structureContent = async (rawText: string, referenceContext?: strin
       }
     });
 
-    // Access the text property directly from the GenerateContentResponse object.
     const text = response.text;
     if (!text) throw new Error("A IA retornou um conteúdo vazio.");
     return JSON.parse(text);
