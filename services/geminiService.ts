@@ -17,8 +17,8 @@ ESTRUTURA DE STORIES:
 - Todo dia precisa de 3 a 5 passos de stories que criem antecipação ou reforcem a mensagem do feed.`;
 
 export const structureContent = async (rawText: string, referenceContext?: string): Promise<EditorialDocument> => {
-  // Inicializa o cliente com a chave disponível no momento da execução
-  // Create a new GoogleGenAI instance right before making an API call to ensure it uses the most up-to-date API key.
+  // Inicializa o cliente com a chave disponível no momento da execução.
+  // Always use new GoogleGenAI({apiKey: process.env.API_KEY});
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   let instruction = SYSTEM_INSTRUCTION_BASE;
@@ -150,6 +150,7 @@ export const structureContent = async (rawText: string, referenceContext?: strin
       }
     });
 
+    // The GenerateContentResponse features a text property (not a method).
     const text = response.text;
     if (!text) throw new Error("A IA retornou um conteúdo vazio.");
     return JSON.parse(text);

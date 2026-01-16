@@ -16,7 +16,7 @@ declare global {
     openSelectKey: () => Promise<void>;
   }
   interface Window {
-    // Corrected to readonly to match existing declarations in the environment
+    // Fixed Error on line 19: Added readonly modifier to align with existing global declarations.
     readonly aistudio: AIStudio;
   }
 }
@@ -81,7 +81,8 @@ const App: React.FC = () => {
       if (
         msg.includes("API key is missing") || 
         msg.includes("API_KEY_INVALID") || 
-        msg.includes("Requested entity was not found")
+        msg.includes("Requested entity was not found") ||
+        msg.includes("API Key must be set")
       ) {
         setError("Chave de API não detectada ou inválida. Por favor, configure clicando no botão abaixo.");
         if (window.aistudio) setNeedsKey(true);
