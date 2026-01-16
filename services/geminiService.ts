@@ -7,7 +7,7 @@ Seu trabalho é traduzir o input estratégico do usuário em um guia de produç�
 
 REGRAS DE OURO DE PLANEJAMENTO:
 1. CRONOGRAMA COMPLETO: Se o usuário não sugerir dias específicos, você DEVE gerar um cronograma para TODOS os 7 dias da semana (Segunda a Domingo).
-2. IMERSÃO COMO BÔNUS: O bloco de "Imersão" NÃO é um dia do cronograma. Ele é um material de apoio, um "asset" extra no rodapé para que o cliente use como material rico ou série especial.
+2. IMERSÃO COMO BÔNUS: O bloco de "Imersão" NÃO é um dia do cronograma. Ele é um material de apoio extra.
 3. FIDELIDADE AO TEXTO: O texto que vai no card DEVE ser extraído diretamente das ideias enviadas pelo usuário.
 4. FORMATO REELS/VÍDEO: Para todo post de vídeo, você DEVE gerar um "reelsScript" técnico (Hook, Cenas, CTA).
 5. CARROSSÉIS: Detalhe cada slide com descrição visual, imagem e texto exato.
@@ -17,15 +17,12 @@ ESTRUTURA DE STORIES:
 - Todo dia precisa de 3 a 5 passos de stories que criem antecipação ou reforcem a mensagem do feed.`;
 
 export const structureContent = async (rawText: string, referenceContext?: string): Promise<EditorialDocument> => {
-  // Inicializa o cliente com a chave disponível no momento da execução.
-  // Always use new GoogleGenAI({apiKey: process.env.API_KEY});
+  // Inicializamos o cliente dentro da função para garantir que process.env.API_KEY já foi injetado pelo navegador após a seleção.
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   let instruction = SYSTEM_INSTRUCTION_BASE;
-  
   if (referenceContext && referenceContext.trim()) {
-    instruction += `\n\nBIBLIOTECA DE REFERÊNCIA (ESTILO E TOM):
-    ${referenceContext}`;
+    instruction += `\n\nBIBLIOTECA DE REFERÊNCIA (ESTILO E TOM):\n${referenceContext}`;
   }
 
   try {
@@ -150,7 +147,6 @@ export const structureContent = async (rawText: string, referenceContext?: strin
       }
     });
 
-    // The GenerateContentResponse features a text property (not a method).
     const text = response.text;
     if (!text) throw new Error("A IA retornou um conteúdo vazio.");
     return JSON.parse(text);

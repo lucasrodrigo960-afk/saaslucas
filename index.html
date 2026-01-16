@@ -22,10 +22,7 @@
             font-family: 'Playfair Display', serif;
         }
 
-        /* ---------------------------------------------------------
-           MODO PDF ESTRITO (SUPORTE MULTI-FORMATO: A4, A3, A2, A0)
-        --------------------------------------------------------- */
-        
+        /* MODO PDF ESTRITO */
         .pdf-export-mode {
             box-sizing: border-box !important;
             background-color: white !important;
@@ -37,12 +34,10 @@
             padding: 20mm !important;
         }
 
-        #editorial-doc.pdf-mode-a4 { width: 210mm !important; min-width: 210mm !important; max-width: 210mm !important; }
-        #editorial-doc.pdf-mode-a3 { width: 297mm !important; min-width: 297mm !important; max-width: 297mm !important; }
-        #editorial-doc.pdf-mode-a4 { width: 210mm !important; min-width: 210mm !important; max-width: 210mm !important; }
-        #editorial-doc.pdf-mode-a3 { width: 297mm !important; min-width: 297mm !important; max-width: 297mm !important; }
-        #editorial-doc.pdf-mode-a2 { width: 420mm !important; min-width: 420mm !important; max-width: 420mm !important; }
-        #editorial-doc.pdf-mode-a0 { width: 841mm !important; min-width: 841mm !important; max-width: 841mm !important; }
+        #editorial-doc.pdf-mode-a4 { width: 210mm !important; min-width: 210mm !important; }
+        #editorial-doc.pdf-mode-a3 { width: 297mm !important; min-width: 297mm !important; }
+        #editorial-doc.pdf-mode-a2 { width: 420mm !important; min-width: 420mm !important; }
+        #editorial-doc.pdf-mode-a0 { width: 841mm !important; min-width: 841mm !important; }
 
         .pdf-export-mode .lg\:grid-cols-12 {
             display: grid !important;
@@ -50,23 +45,19 @@
         }
         .pdf-export-mode .lg\:col-span-4 { grid-column: span 4 / span 4 !important; }
         .pdf-export-mode .lg\:col-span-8 { grid-column: span 8 / span 8 !important; }
-        .pdf-export-mode .md\:flex-row { flex-direction: row !important; }
 
         .page-break-avoid {
             page-break-inside: avoid !important;
             break-inside: avoid !important;
-            display: block !important;
         }
 
         @media print {
             .no-print { display: none !important; }
-            body { background: white !important; }
         }
 
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
         ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #aaa; }
     </style>
 <script type="importmap">
 {

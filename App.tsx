@@ -16,8 +16,8 @@ declare global {
     openSelectKey: () => Promise<void>;
   }
   interface Window {
-    // Fixed Error on line 19: Added readonly modifier to align with existing global declarations.
-    readonly aistudio: AIStudio;
+    // Removed readonly to match potentially existing declarations and avoid modifier conflict
+    aistudio: AIStudio;
   }
 }
 
@@ -30,17 +30,14 @@ const App: React.FC = () => {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedFormat, setSelectedFormat] = useState<PDFFormat>('a4');
-  const [needsKey, setNeedsKey] = useState(false);
+  const [hasKey, setHasKey] = useState<boolean>(true); // Inicializa assumindo que tem, checa no useEffect
   const docRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const checkKey = async () => {
-      // Se não houver chave no ambiente, verifica se já foi selecionada uma via aistudio
       if (window.aistudio && !process.env.API_KEY) {
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        if (!hasKey) {
-          setNeedsKey(true);
-        }
+        const selected = await window.aistudio.hasSelectedApiKey();
+        setHasKey(selected);
       }
     };
     checkKey();
@@ -49,24 +46,14 @@ const App: React.FC = () => {
   const handleOpenKey = async () => {
     if (window.aistudio) {
       await window.aistudio.openSelectKey();
-      // Assume sucesso imediato para evitar race condition
-      setNeedsKey(false);
+      // Seguindo diretriz: assumir sucesso imediato após disparar o diálogo
+      setHasKey(true);
       setError(null);
     }
   };
 
   const handleGenerate = useCallback(async () => {
     if (!input.trim()) return;
-
-    // Bloqueio preventivo se não houver chave detectada
-    if (!process.env.API_KEY && window.aistudio) {
-      const hasKey = await window.aistudio.hasSelectedApiKey();
-      if (!hasKey) {
-        setNeedsKey(true);
-        setError("Configuração necessária: Por favor, selecione sua API Key.");
-        return;
-      }
-    }
     
     setLoading(true);
     setError(null);
@@ -76,18 +63,11 @@ const App: React.FC = () => {
     } catch (err: any) {
       console.error(err);
       const msg = err.message || "";
-      
-      // Se a API retornar erro de chave ausente ou inválida, forçamos o seletor
-      if (
-        msg.includes("API key is missing") || 
-        msg.includes("API_KEY_INVALID") || 
-        msg.includes("Requested entity was not found") ||
-        msg.includes("API Key must be set")
-      ) {
-        setError("Chave de API não detectada ou inválida. Por favor, configure clicando no botão abaixo.");
-        if (window.aistudio) setNeedsKey(true);
+      if (msg.includes("API Key must be set") || msg.includes("Requested entity was not found")) {
+        setHasKey(false);
+        setError("Sua sessão expirou ou a chave não foi detectada. Por favor, reative sua API Key.");
       } else {
-        setError(`Erro na geração: ${err.message || 'Verifique sua conexão.'}`);
+        setError(`Erro na geração: ${err.message || 'Verifique sua conexão e tente novamente.'}`);
       }
     } finally {
       setLoading(false);
@@ -99,8 +79,6 @@ const App: React.FC = () => {
     if (!element || !doc) return;
     
     setExporting(true);
-    setError(null);
-    
     const originalOverflow = document.body.style.overflow;
     
     try {
@@ -110,40 +88,21 @@ const App: React.FC = () => {
       
       await new Promise(resolve => setTimeout(resolve, 800));
 
-      const formatWidths: Record<PDFFormat, number> = {
-        'a4': 794,
-        'a3': 1122,
-        'a2': 1587,
-        'a0': 3178
-      };
-
+      const formatWidths: Record<PDFFormat, number> = { 'a4': 794, 'a3': 1122, 'a2': 1587, 'a0': 3178 };
       const windowWidth = formatWidths[selectedFormat];
 
       const opt = {
         margin: 0,
-        filename: `${doc.title.toLowerCase().replace(/\s/g, '-')}-${selectedFormat}.pdf`,
+        filename: `${doc.title.toLowerCase().replace(/\s/g, '-')}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { 
-          scale: selectedFormat === 'a0' ? 1.2 : 2, 
-          useCORS: true, 
-          letterRendering: true,
-          scrollX: 0,
-          scrollY: 0,
-          windowWidth: windowWidth,
-        },
-        jsPDF: { 
-          unit: 'mm', 
-          format: selectedFormat, 
-          orientation: 'portrait' 
-        },
+        html2canvas: { scale: 2, useCORS: true, letterRendering: true, windowWidth },
+        jsPDF: { unit: 'mm', format: selectedFormat, orientation: 'portrait' },
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
       };
 
       await html2pdf().set(opt).from(element).save();
-
-    } catch (err: any) {
-      console.error('Erro no processamento do PDF:', err);
-      setError(`Erro ao materializar o arquivo em ${selectedFormat.toUpperCase()}.`);
+    } catch (err) {
+      setError('Erro ao materializar PDF.');
     } finally {
       element.classList.remove('pdf-export-mode', 'pdf-mode-a0', 'pdf-mode-a2', 'pdf-mode-a3', 'pdf-mode-a4');
       document.body.style.overflow = originalOverflow;
@@ -155,15 +114,12 @@ const App: React.FC = () => {
     if (!docRef.current || !doc) return;
     setExporting(true);
     try {
-      const dataUrl = await toPng(docRef.current, { 
-        pixelRatio: 2, 
-        backgroundColor: '#ffffff'
-      });
+      const dataUrl = await toPng(docRef.current, { pixelRatio: 2, backgroundColor: '#ffffff' });
       const link = document.createElement('a');
       link.download = `${doc.title.toLowerCase().replace(/\s/g, '-')}.png`;
       link.href = dataUrl;
       link.click();
-    } catch (err: any) {
+    } catch (err) {
       setError('Erro na captura da imagem.');
     } finally {
       setExporting(false);
@@ -172,33 +128,53 @@ const App: React.FC = () => {
 
   const reset = () => {
     setDoc(null);
-    setInput('');
     setError(null);
   };
+
+  // TELA DE SETUP OBRIGATÓRIA SE NÃO HOUVER CHAVE
+  if (!hasKey) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center p-6 text-white text-center">
+        <div className="max-w-md w-full space-y-12 py-20 px-10 border border-gray-800 bg-zinc-950 shadow-2xl">
+          <div className="space-y-4">
+            <h1 className="serif text-4xl italic font-bold tracking-tight">Setup de Elite</h1>
+            <div className="h-px w-12 bg-white mx-auto opacity-20"></div>
+            <p className="text-xs uppercase tracking-[0.3em] text-gray-500">Arquitetura de Conteúdo Enterprise</p>
+          </div>
+          
+          <div className="space-y-6">
+            <p className="text-sm text-gray-400 leading-relaxed font-light">
+              Para acessar o motor de inteligência e gerar documentos de alta fidelidade, você precisa selecionar uma <strong>API Key de um projeto pago</strong> no seu navegador.
+            </p>
+            <button 
+              onClick={handleOpenKey}
+              className="w-full py-5 bg-white text-black text-[11px] font-bold uppercase tracking-[0.4em] hover:bg-gray-200 transition-all shadow-white/5 shadow-lg"
+            >
+              Ativar Chave de API
+            </button>
+            <a 
+              href="https://ai.google.dev/gemini-api/docs/billing" 
+              target="_blank" 
+              rel="noreferrer"
+              className="block text-[9px] uppercase tracking-widest text-zinc-600 underline hover:text-white transition-colors"
+            >
+              Consultar Faturamento e Cotas
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-[#fcfcfc]">
       <aside className={`no-print w-full md:w-[450px] border-r border-gray-200 p-8 flex flex-col sticky top-0 h-screen overflow-y-auto bg-white z-10 ${doc ? 'hidden lg:flex' : 'flex'}`}>
         <div className="mb-12">
           <h1 className="serif text-3xl font-bold italic mb-2 tracking-tight text-black">Editorial Architect</h1>
-          <p className="text-[10px] text-gray-400 uppercase tracking-[0.4em] font-bold">PRECISION PDF V11.0 — ENTERPRISE GRADE</p>
+          <p className="text-[10px] text-gray-400 uppercase tracking-[0.4em] font-bold">PRECISION PDF V11.0</p>
         </div>
 
         <div className="flex-1 flex flex-col space-y-8">
-          {needsKey && (
-            <div className="p-6 bg-amber-50 border border-amber-200 rounded-sm space-y-4 shadow-md animate-pulse">
-              <p className="text-[10px] font-bold text-amber-800 uppercase tracking-widest">Ação Obrigatória</p>
-              <p className="text-xs text-amber-700 leading-relaxed font-medium">Você precisa selecionar uma API Key de um projeto pago para realizar tarefas de arquitetura complexa.</p>
-              <button 
-                onClick={handleOpenKey}
-                className="w-full py-3 bg-amber-600 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-amber-700 transition-colors shadow-lg"
-              >
-                Configurar API Key
-              </button>
-              <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="block text-center text-[9px] text-amber-500 underline uppercase tracking-tighter">Verificar Faturamento</a>
-            </div>
-          )}
-
           <div className="flex flex-col space-y-3">
             <button 
               onClick={() => setShowRef(!showRef)}
@@ -211,7 +187,7 @@ const App: React.FC = () => {
                 value={reference}
                 onChange={(e) => setReference(e.target.value)}
                 placeholder="Ex: Minimalismo, luxo, fontes serifadas..."
-                className="w-full h-32 p-4 text-xs border border-gray-100 bg-gray-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-black transition-all resize-none font-light leading-relaxed"
+                className="w-full h-32 p-4 text-xs border border-gray-100 bg-gray-50 focus:bg-white focus:outline-none transition-all resize-none font-light leading-relaxed"
               />
             )}
           </div>
@@ -222,7 +198,7 @@ const App: React.FC = () => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Cole o seu roteiro ou as ideias soltas aqui..."
-              className="flex-1 min-h-[350px] p-5 text-sm border border-gray-100 bg-gray-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-black transition-all resize-none font-light leading-relaxed shadow-inner"
+              className="flex-1 min-h-[350px] p-5 text-sm border border-gray-100 bg-gray-50 focus:bg-white focus:outline-none transition-all resize-none font-light leading-relaxed shadow-inner"
             />
           </div>
 
@@ -230,12 +206,10 @@ const App: React.FC = () => {
             onClick={handleGenerate}
             disabled={loading || !input.trim()}
             className={`w-full py-5 text-[11px] font-bold uppercase tracking-[0.4em] transition-all border ${
-              loading 
-              ? 'bg-gray-100 text-gray-400 border-gray-100 cursor-wait' 
-              : 'bg-black text-white border-black hover:bg-transparent hover:text-black shadow-2xl active:scale-95'
+              loading ? 'bg-gray-100 text-gray-400 cursor-wait' : 'bg-black text-white border-black hover:bg-transparent hover:text-black shadow-2xl active:scale-95'
             }`}
           >
-            {loading ? 'Arquitetando Conteúdo...' : 'Gerar Planejamento'}
+            {loading ? 'Processando Arquitetura...' : 'Gerar Planejamento'}
           </button>
 
           {error && (
@@ -255,38 +229,29 @@ const App: React.FC = () => {
               </button>
               
               <div className="flex flex-wrap items-center gap-4">
-                <div className="flex flex-col gap-1">
-                  <span className="text-[8px] font-bold uppercase text-gray-400 tracking-widest">Formato PDF</span>
-                  <select 
-                    value={selectedFormat}
-                    onChange={(e) => setSelectedFormat(e.target.value as PDFFormat)}
-                    className="bg-gray-50 border border-gray-200 text-[10px] font-bold py-1 px-3 focus:outline-none focus:ring-1 focus:ring-black uppercase tracking-widest cursor-pointer"
-                  >
-                    <option value="a4">A4 (Padrão)</option>
-                    <option value="a3">A3 (Portfólio)</option>
-                    <option value="a2">A2 (Expandido)</option>
-                    <option value="a0">A0 (Canvas Gigante)</option>
-                  </select>
-                </div>
-
-                <div className="h-8 w-px bg-gray-200"></div>
-
-                <button onClick={exportAsImage} disabled={exporting} className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest bg-white border border-gray-200 hover:bg-gray-50">
+                <select 
+                  value={selectedFormat}
+                  onChange={(e) => setSelectedFormat(e.target.value as PDFFormat)}
+                  className="bg-gray-50 border border-gray-200 text-[10px] font-bold py-1 px-3 uppercase tracking-widest cursor-pointer"
+                >
+                  <option value="a4">A4</option>
+                  <option value="a3">A3</option>
+                  <option value="a2">A2</option>
+                  <option value="a0">A0</option>
+                </select>
+                <button onClick={exportAsImage} disabled={exporting} className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest border border-gray-200 hover:bg-gray-50">
                   PNG
                 </button>
                 <button
                   onClick={exportAsPDF}
                   disabled={exporting}
-                  className="px-8 py-2 text-[10px] font-bold uppercase tracking-widest bg-black text-white hover:bg-gray-800 transition-all shadow-xl disabled:bg-gray-400 min-w-[200px]"
+                  className="px-8 py-2 text-[10px] font-bold uppercase tracking-widest bg-black text-white hover:bg-gray-800 shadow-xl disabled:bg-gray-400"
                 >
-                  {exporting ? 'RENDERIZANDO...' : `EXPORTAR ${selectedFormat.toUpperCase()}`}
+                  {exporting ? 'GERANDO...' : `EXPORTAR PDF`}
                 </button>
               </div>
             </div>
-            
-            <div ref={docRef}>
-              <DocumentPreview doc={doc} />
-            </div>
+            <div ref={docRef}><DocumentPreview doc={doc} /></div>
           </div>
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-center">
@@ -295,7 +260,7 @@ const App: React.FC = () => {
               <h2 className="serif text-3xl italic font-light text-black tracking-tight leading-snug">
                 Insira o input estratégico para materializar um documento de elite.
               </h2>
-              <p className="text-xs uppercase tracking-widest text-gray-400">Suporte nativo para exportação ISO A4-A0 de alta fidelidade.</p>
+              <p className="text-xs uppercase tracking-widest text-gray-400">Geração de documentos em escala industrial.</p>
             </div>
           </div>
         )}
