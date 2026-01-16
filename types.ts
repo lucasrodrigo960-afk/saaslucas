@@ -1,4 +1,15 @@
 
+export interface LayoutSettings {
+  accentColor: string;
+  fontStyle: 'classic' | 'modern' | 'minimal';
+  showCover: boolean;
+  showArchitecture: boolean;
+  showDays: boolean;
+  showImmersion: boolean;
+  showFooter: boolean;
+  contentDensity: 'compact' | 'elegant' | 'spacious';
+}
+
 export interface EditorialDocument {
   title: string;
   subtitle: string;

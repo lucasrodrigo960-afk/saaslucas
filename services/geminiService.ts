@@ -2,37 +2,51 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { EditorialDocument } from "../types";
 
-const SYSTEM_INSTRUCTION_BASE = `Você é uma IA proprietária de uma agência de Social Media de elite.
-Seu trabalho é traduzir o input estratégico do usuário em um guia de produção visual e textual irrefutável.
+export type AIWorkflowMode = 'generative' | 'structural';
 
-REGRAS DE OURO DE PLANEJAMENTO:
-1. CRONOGRAMA COMPLETO: Se o usuário não sugerir dias específicos, você DEVE gerar um cronograma para TODOS os 7 dias da semana (Segunda a Domingo).
-2. IMERSÃO COMO BÔNUS: O bloco de "Imersão" NÃO é um dia do cronograma. Ele é um material de apoio extra.
-3. FIDELIDADE AO TEXTO: O texto que vai no card DEVE ser extraído diretamente das ideias enviadas pelo usuário.
-4. FORMATO REELS/VÍDEO: Para todo post de vídeo, você DEVE gerar um "reelsScript" técnico (Hook, Cenas, CTA).
-5. CARROSSÉIS: Detalhe cada slide com descrição visual, imagem e texto exato.
-6. LINGUAGEM "ELITE ACTIONABLE": Use comandos diretos de direção de arte e fotografia.
+const SYSTEM_INSTRUCTION_GENERATIVE = `Você é um Estrategista de Social Media de Elite. 
+Sua missão é pegar um input básico e EXPANDIR em uma estratégia completa de 7 dias. 
+Crie ganchos (hooks) magnéticos, legendas persuasivas e direções criativas que o usuário talvez não tenha pensado. 
+Mantenha o tom de autoridade e sofisticação.`;
 
-ESTRUTURA DE STORIES:
-- Todo dia precisa de 3 a 5 passos de stories que criem antecipação ou reforcem a mensagem do feed.`;
+const SYSTEM_INSTRUCTION_STRUCTURAL = `Você é um Arquiteto Editorial de Precisão. 
+Sua missão é APENAS ORGANIZAR o texto bruto do usuário no formato de documento profissional. 
+NÃO invente novos temas ou estratégias. Seja 100% fiel às informações fornecidas. 
+Seu valor está na hierarquia, clareza e formatação do pensamento do usuário.`;
 
-export const structureContent = async (rawText: string, referenceContext?: string): Promise<EditorialDocument> => {
-  // O Vite substituirá 'process.env.API_KEY' pelo valor de 'VITE_GEMINI_API_KEY' definido no seu .env ou painel de deploy
+const COMMON_RULES = `
+REGRAS DE OURO:
+1. CRONOGRAMA: Gere sempre para os 7 dias da semana (Segunda a Domingo).
+2. FIDELIDADE VISUAL: Use linguagem de direção de arte (fotografia, enquadramento).
+3. ESTRUTURA: Siga rigorosamente o schema JSON fornecido.
+4. STORIES: Todo dia deve ter um plano de 3-5 stories.`;
+
+export const structureContent = async (
+  rawText: string, 
+  referenceContext?: string, 
+  workflow: AIWorkflowMode = 'generative'
+): Promise<EditorialDocument> => {
+  // Initialize Gemini AI client with the provided API key
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  let instruction = SYSTEM_INSTRUCTION_BASE;
+  const baseInstruction = workflow === 'generative' 
+    ? SYSTEM_INSTRUCTION_GENERATIVE 
+    : SYSTEM_INSTRUCTION_STRUCTURAL;
+
+  let finalInstruction = `${baseInstruction}\n${COMMON_RULES}`;
+  
   if (referenceContext && referenceContext.trim()) {
-    instruction += `\n\nBIBLIOTECA DE REFERÊNCIA (ESTILO E TOM):\n${referenceContext}`;
+    finalInstruction += `\n\nBIBLIOTECA DE REFERÊNCIA (ESTILO E TOM):\n${referenceContext}`;
   }
 
   try {
+    // Fix: Using gemini-3-pro-preview for complex reasoning tasks and removed thinkingBudget to use model defaults
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview', 
+      model: 'gemini-3-pro-preview', 
       contents: rawText,
       config: {
-        systemInstruction: instruction,
+        systemInstruction: finalInstruction,
         responseMimeType: "application/json",
-        thinkingConfig: { thinkingBudget: 0 }, 
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -147,6 +161,7 @@ export const structureContent = async (rawText: string, referenceContext?: strin
       }
     });
 
+    // Fix: Correctly access the .text property from the GenerateContentResponse object
     const text = response.text;
     if (!text) throw new Error("A IA retornou um conteúdo vazio.");
     return JSON.parse(text);
