@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { EditorialDocument } from "../types";
 
@@ -17,7 +16,7 @@ ESTRUTURA DE STORIES:
 - Todo dia precisa de 3 a 5 passos de stories que criem antecipação ou reforcem a mensagem do feed.`;
 
 export const structureContent = async (rawText: string, referenceContext?: string): Promise<EditorialDocument> => {
-  // Always use process.env.API_KEY directly.
+  // Fix: The API key is obtained exclusively from process.env.API_KEY which is assumed to be pre-configured.
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   let instruction = SYSTEM_INSTRUCTION_BASE;
@@ -27,12 +26,13 @@ export const structureContent = async (rawText: string, referenceContext?: strin
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview', 
+      model: 'gemini-3-flash-preview', 
       contents: rawText,
       config: {
         systemInstruction: instruction,
         responseMimeType: "application/json",
-        thinkingConfig: { thinkingBudget: 4000 },
+        // Fix: Explicitly setting thinkingBudget to 0 to disable reasoning steps for faster response delivery.
+        thinkingConfig: { thinkingBudget: 0 }, 
         responseSchema: {
           type: Type.OBJECT,
           properties: {
