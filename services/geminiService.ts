@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { EditorialDocument } from "../types";
 
@@ -16,7 +17,7 @@ ESTRUTURA DE STORIES:
 - Todo dia precisa de 3 a 5 passos de stories que criem antecipação ou reforcem a mensagem do feed.`;
 
 export const structureContent = async (rawText: string, referenceContext?: string): Promise<EditorialDocument> => {
-  // Fix: The API key is obtained exclusively from process.env.API_KEY which is assumed to be pre-configured.
+  // O Vite substituirá 'process.env.API_KEY' pelo valor de 'VITE_GEMINI_API_KEY' definido no seu .env ou painel de deploy
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   let instruction = SYSTEM_INSTRUCTION_BASE;
@@ -31,7 +32,6 @@ export const structureContent = async (rawText: string, referenceContext?: strin
       config: {
         systemInstruction: instruction,
         responseMimeType: "application/json",
-        // Fix: Explicitly setting thinkingBudget to 0 to disable reasoning steps for faster response delivery.
         thinkingConfig: { thinkingBudget: 0 }, 
         responseSchema: {
           type: Type.OBJECT,
