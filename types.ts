@@ -1,13 +1,22 @@
 
 export interface LayoutSettings {
   accentColor: string;
+  backgroundColor: string;
   fontStyle: 'classic' | 'modern' | 'minimal';
+  fontFamily: 'playfair' | 'inter' | 'syne' | 'montserrat';
   showCover: boolean;
   showArchitecture: boolean;
   showDays: boolean;
   showImmersion: boolean;
   showFooter: boolean;
   contentDensity: 'compact' | 'elegant' | 'spacious';
+}
+
+export interface SavedProject {
+  id: string;
+  timestamp: number;
+  doc: EditorialDocument;
+  settings: LayoutSettings;
 }
 
 export interface EditorialDocument {
@@ -35,6 +44,8 @@ export interface ReelsScene {
   sceneNumber: number;
   visualAction: string;
   audioSpeech: string;
+  transition?: string;
+  audioSuggestion?: string;
 }
 
 export interface ReelsScript {
