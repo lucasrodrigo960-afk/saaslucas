@@ -1,8 +1,11 @@
-
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { EditorialDocument, LayoutSettings, DayPlan, SavedProject } from './types';
 import { structureContent, AIWorkflowMode } from './services/geminiService';
 import DocumentPreview from './components/DocumentPreview';
+import Login from './components/Login';
+import Dashboard from './components/Dashboard';
+import ProtectedRoute from './components/ProtectedRoute';
+import { isAuthenticated, logout } from './services/authService';
 
 const html2pdf = (window as any).html2pdf;
 
@@ -10,6 +13,8 @@ type WorkflowStep = 'inicio' | 'entrada-ia' | 'entrada-texto' | 'studio';
 type StudioTab = 'conteudo' | 'estilo';
 
 const App: React.FC = () => {
+  const [authenticated, setAuthenticated] = useState(isAuthenticated());
+  const [showDashboard, setShowDashboard] = useState(false);
   const [step, setStep] = useState<WorkflowStep>('inicio');
   const [studioTab, setStudioTab] = useState<StudioTab>('conteudo');
   const [input, setInput] = useState('');
@@ -44,6 +49,19 @@ const App: React.FC = () => {
       }
     }
   }, []);
+
+  const handleLoginSuccess = () => {
+    setAuthenticated(true);
+    setShowDashboard(false); // Ir direto para o app
+  };
+
+  const handleLogout = () => {
+    logout();
+    setAuthenticated(false);
+    setShowDashboard(false);
+    setDoc(null);
+    setStep('inicio');
+  };
 
   const saveToHistory = (newDoc: EditorialDocument, settings: LayoutSettings) => {
     const newProject: SavedProject = {
@@ -114,11 +132,11 @@ const App: React.FC = () => {
         margin: 0,
         filename: `${doc.title.toLowerCase().replace(/\s/g, '-')}-a2-elite.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { 
-          scale: 2, 
-          useCORS: true, 
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
           windowWidth: 1587,
-          letterRendering: true 
+          letterRendering: true
         },
         jsPDF: { unit: 'mm', format: 'a2', orientation: 'portrait' },
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
@@ -140,6 +158,16 @@ const App: React.FC = () => {
     setError(null);
   };
 
+  // Se não estiver autenticado, mostrar tela de login
+  if (!authenticated) {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  // Se quiser mostrar dashboard ao invés do app principal
+  if (showDashboard) {
+    return <Dashboard onLogout={handleLogout} />;
+  }
+
   return (
     <div className="min-h-screen bg-[#fcfcfc] text-[#1a1a1a]">
       <header className="no-print h-20 border-b border-gray-100 bg-white flex items-center justify-between px-8 sticky top-0 z-50">
@@ -147,19 +175,26 @@ const App: React.FC = () => {
           <button onClick={resetAll} className="serif text-2xl font-black italic tracking-tight">Arquitetura Editorial</button>
           <span className="text-[9px] font-black text-gray-300 tracking-[0.4em] mt-1 uppercase">ESTÚDIO ELITE V16</span>
         </div>
-        
+
         {doc && (
           <div className="flex items-center gap-6">
-            <button 
+            <button
               onClick={resetAll}
               className="text-[10px] font-black uppercase tracking-widest text-black border border-black/10 px-6 py-2.5 hover:bg-gray-50 transition-all"
             >
               NOVO PROJETO
             </button>
             <div className="w-px h-6 bg-gray-100" />
+            <button
+              onClick={handleLogout}
+              className="text-[10px] font-black uppercase tracking-widest text-gray-600 hover:text-black transition-all"
+            >
+              SAIR
+            </button>
+            <div className="w-px h-6 bg-gray-100" />
             <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded border border-gray-100">
-               <span className="text-[9px] font-black uppercase text-gray-400">FORMATO:</span>
-               <span className="text-[10px] font-black uppercase text-black">A2 PROFISSIONAL</span>
+              <span className="text-[9px] font-black uppercase text-gray-400">FORMATO:</span>
+              <span className="text-[10px] font-black uppercase text-black">A2 PROFISSIONAL</span>
             </div>
             <button
               onClick={exportAsPDF}
@@ -231,7 +266,7 @@ const App: React.FC = () => {
                       {doc.days.map((day, idx) => (
                         <div key={idx} className="border border-gray-100 rounded-sm overflow-hidden mb-2">
                           <button onClick={() => setEditingDayIdx(editingDayIdx === idx ? null : idx)} className={`w-full p-5 text-left text-[11px] font-black flex justify-between transition-all ${editingDayIdx === idx ? 'bg-black text-white' : 'bg-white hover:bg-gray-50'}`}>
-                            <span>D0{idx+1} • {day.day}</span>
+                            <span>D0{idx + 1} • {day.day}</span>
                             <span className="opacity-40">{editingDayIdx === idx ? '−' : '+'}</span>
                           </button>
                           {editingDayIdx === idx && (
@@ -256,8 +291,8 @@ const App: React.FC = () => {
                           { id: 'modern', label: 'MODERNO' },
                           { id: 'minimal', label: 'MINIMAL' }
                         ].map(st => (
-                          <button 
-                            key={st.id} 
+                          <button
+                            key={st.id}
                             onClick={() => updateLayout('fontStyle', st.id)}
                             className={`py-4 border text-[9px] font-black transition-all ${layoutSettings.fontStyle === st.id ? 'bg-black text-white border-black' : 'bg-white text-gray-400 border-gray-100'}`}
                           >
@@ -277,8 +312,8 @@ const App: React.FC = () => {
                           { id: 'inter', label: 'Inter (Sans)', class: 'font-sans' },
                           { id: 'montserrat', label: 'Montserrat', class: 'montserrat' }
                         ].map(f => (
-                          <button 
-                            key={f.id} 
+                          <button
+                            key={f.id}
                             onClick={() => updateLayout('fontFamily', f.id)}
                             className={`p-4 border text-left transition-all ${layoutSettings.fontFamily === f.id ? 'border-black bg-black text-white' : 'border-gray-100 bg-white text-gray-600'}`}
                           >
@@ -293,8 +328,8 @@ const App: React.FC = () => {
                       <label className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-300">COR DE DESTAQUE</label>
                       <div className="flex flex-wrap gap-3">
                         {['#000000', '#D4AF37', '#7F1D1D', '#065F46', '#1E3A8A', '#4F46E5'].map(color => (
-                          <button 
-                            key={color} 
+                          <button
+                            key={color}
                             onClick={() => updateLayout('accentColor', color)}
                             className={`w-10 h-10 rounded-full border-2 transition-all ${layoutSettings.accentColor === color ? 'border-black scale-110 shadow-lg' : 'border-transparent opacity-60'}`}
                             style={{ backgroundColor: color }}
@@ -313,8 +348,8 @@ const App: React.FC = () => {
                           { id: '#f2f2f2', label: 'Estúdio' },
                           { id: '#0a0a0a', label: 'Dark' }
                         ].map(bg => (
-                          <button 
-                            key={bg.id} 
+                          <button
+                            key={bg.id}
                             onClick={() => updateLayout('backgroundColor', bg.id)}
                             className={`w-12 h-12 rounded border-2 transition-all flex items-center justify-center ${layoutSettings.backgroundColor === bg.id ? 'border-black' : 'border-gray-100'}`}
                             style={{ backgroundColor: bg.id }}
