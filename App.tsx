@@ -13,7 +13,7 @@ type WorkflowStep = 'inicio' | 'entrada-ia' | 'entrada-texto' | 'studio';
 type StudioTab = 'conteudo' | 'estilo';
 
 const App: React.FC = () => {
-  const [authenticated, setAuthenticated] = useState(isAuthenticated());
+  const [authenticated, setAuthenticated] = useState(true); // Bypass temporário para desenvolvimento
   const [showDashboard, setShowDashboard] = useState(false);
   const [step, setStep] = useState<WorkflowStep>('inicio');
   const [studioTab, setStudioTab] = useState<StudioTab>('conteudo');

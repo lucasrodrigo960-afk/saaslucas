@@ -41,7 +41,7 @@ export const structureContent = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview', 
+      model: 'gemini-3-flash-preview', 
       contents: rawText,
       config: {
         systemInstruction: finalInstruction,
