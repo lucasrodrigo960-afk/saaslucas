@@ -1,7 +1,7 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { initializeDatabase, createUser, findUserByEmail } from './database.js';
+import { prisma } from './lib/prisma.js';
 import { register, login, verifyToken } from './controllers/auth.controller.js';
 import { authenticateToken } from './middleware/auth.middleware.js';
 import bcrypt from 'bcrypt';
@@ -15,7 +15,7 @@ const PORT = process.env.PORT || 3001;
 const allowedOrigins = [
     'http://localhost:5173',
     'http://localhost:3000',
-    process.env.FRONTEND_URL, // URL do Netlify configurada via env
+    process.env.FRONTEND_URL, // URL frontend configurada via env
 ].filter(Boolean); // Remove undefined
 
 // Middlewares
@@ -45,7 +45,7 @@ app.post('/api/auth/login', login);
 app.get('/api/auth/verify', authenticateToken, verifyToken);
 
 // Rota protegida de exemplo
-app.get('/api/protected', authenticateToken, (req, res) => {
+app.get('/api/protected', authenticateToken, (req: any, res) => {
     res.json({
         message: 'Você acessou uma rota protegida!',
         user: req.user
@@ -53,7 +53,7 @@ app.get('/api/protected', authenticateToken, (req, res) => {
 });
 
 // Handler de erros
-app.use((err, req, res, next) => {
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     console.error('Erro não tratado:', err);
     res.status(500).json({
         error: 'Erro interno do servidor',
@@ -61,19 +61,26 @@ app.use((err, req, res, next) => {
     });
 });
 
-// Inicializar banco de dados e criar usuário padrão
+// Inicializar banco de dados via Prisma e criar usuário padrão
 async function inicializarServidor() {
     try {
-        await initializeDatabase();
-
         // Criar usuário padrão se não existir
         const emailPadrao = 'editor@elite.com';
-        const userExistente = await findUserByEmail(emailPadrao);
+        const userExistente = await prisma.user.findUnique({
+            where: { email: emailPadrao }
+        });
 
         if (!userExistente) {
             const senhaPadrao = 'senha123';
             const senhaHash = await bcrypt.hash(senhaPadrao, 10);
-            await createUser(emailPadrao, senhaHash, 'Editor Elite');
+            
+            await prisma.user.create({
+                data: {
+                    email: emailPadrao,
+                    passwordHash: senhaHash,
+                    name: 'Editor Elite'
+                }
+            });
             console.log('✅ Usuário padrão criado:');
             console.log('   Email:', emailPadrao);
             console.log('   Senha:', senhaPadrao);

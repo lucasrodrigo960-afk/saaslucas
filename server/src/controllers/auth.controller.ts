@@ -1,7 +1,9 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { createUser, findUserByEmail, findUserById } from '../database.js';
+import { prisma } from '../lib/prisma.js';
 import dotenv from 'dotenv';
+import { Request, Response } from 'express';
+import { AuthRequest } from '../middleware/auth.middleware.js';
 
 dotenv.config();
 
@@ -9,7 +11,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
 const SALT_ROUNDS = 10;
 
 // Registrar novo usuário
-export async function register(req, res) {
+export async function register(req: Request, res: Response) {
     try {
         const { email, senha, nome } = req.body;
 
@@ -31,7 +33,9 @@ export async function register(req, res) {
         }
 
         // Verificar se usuário já existe
-        const existingUser = await findUserByEmail(email);
+        const existingUser = await prisma.user.findUnique({
+            where: { email }
+        });
         if (existingUser) {
             return res.status(409).json({
                 error: 'Usuário já existe',
@@ -42,8 +46,14 @@ export async function register(req, res) {
         // Hash da senha
         const senhaHash = await bcrypt.hash(senha, SALT_ROUNDS);
 
-        // Criar usuário
-        const user = await createUser(email, senhaHash, nome);
+        // Criar usuário (Tokens já serão 40 por default do banco de dados)
+        const user = await prisma.user.create({
+            data: {
+                email,
+                passwordHash: senhaHash,
+                name: nome
+            }
+        });
 
         // Gerar token JWT
         const token = jwt.sign(
@@ -58,7 +68,7 @@ export async function register(req, res) {
             user: {
                 id: user.id,
                 email: user.email,
-                nome: user.nome
+                nome: user.name
             }
         });
     } catch (error) {
@@ -71,7 +81,7 @@ export async function register(req, res) {
 }
 
 // Login
-export async function login(req, res) {
+export async function login(req: Request, res: Response) {
     try {
         const { email, senha } = req.body;
 
@@ -84,7 +94,9 @@ export async function login(req, res) {
         }
 
         // Buscar usuário
-        const user = await findUserByEmail(email);
+        const user = await prisma.user.findUnique({
+            where: { email }
+        });
         if (!user) {
             return res.status(401).json({
                 error: 'Credenciais inválidas',
@@ -93,7 +105,7 @@ export async function login(req, res) {
         }
 
         // Verificar senha
-        const senhaValida = await bcrypt.compare(senha, user.senha_hash);
+        const senhaValida = await bcrypt.compare(senha, user.passwordHash);
         if (!senhaValida) {
             return res.status(401).json({
                 error: 'Credenciais inválidas',
@@ -114,7 +126,7 @@ export async function login(req, res) {
             user: {
                 id: user.id,
                 email: user.email,
-                nome: user.nome
+                nome: user.name
             }
         });
     } catch (error) {
@@ -127,10 +139,12 @@ export async function login(req, res) {
 }
 
 // Verificar token e retornar dados do usuário
-export async function verifyToken(req, res) {
+export async function verifyToken(req: AuthRequest, res: Response) {
     try {
         // req.user já foi preenchido pelo middleware authenticateToken
-        const user = await findUserById(req.user.id);
+        const user = await prisma.user.findUnique({
+             where: { id: req.user.id }
+        });
 
         if (!user) {
             return res.status(404).json({
@@ -143,7 +157,7 @@ export async function verifyToken(req, res) {
             user: {
                 id: user.id,
                 email: user.email,
-                nome: user.nome
+                nome: user.name
             }
         });
     } catch (error) {
