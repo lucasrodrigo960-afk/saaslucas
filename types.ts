@@ -1,14 +1,36 @@
 
 export interface LayoutSettings {
-  accentColor: string;
-  backgroundColor: string;
+  // Cores
+  colorBackground: string;
+  colorText: string;
+  colorTitle: string;
+  colorCard: string;
+  colorCardText: string;
+  colorCardAccent: string;
+  
+  // Tipografia e Estilo
   fontStyle: 'classic' | 'modern' | 'minimal';
-  fontFamily: 'playfair' | 'inter' | 'syne' | 'montserrat';
+  fontTitle: 'playfair' | 'inter' | 'syne' | 'montserrat' | 'caveat' | 'cormorant' | 'jetbrains';
+  fontBody: 'playfair' | 'inter' | 'syne' | 'montserrat' | 'caveat' | 'cormorant' | 'jetbrains';
+  baseFontSize: number;
+  
+  // Visibilidade de Seções
   showCover: boolean;
   showArchitecture: boolean;
   showDays: boolean;
   showImmersion: boolean;
   showFooter: boolean;
+  
+  // Branding e Personalização
+  backgroundPattern: string;
+  watermarkImage?: string;
+  watermarkOpacity?: number;
+  watermarkGrayscale?: boolean;
+  designerSignature?: string;
+  socialMediaSignature?: string;
+  companyName?: string;
+  
+  // Densidade
   contentDensity: 'compact' | 'elegant' | 'spacious';
 }
 

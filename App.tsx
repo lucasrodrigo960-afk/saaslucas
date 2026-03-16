@@ -1,11 +1,11 @@
+
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { EditorialDocument, LayoutSettings, DayPlan, SavedProject } from './types';
 import { structureContent, AIWorkflowMode } from './services/geminiService';
 import DocumentPreview from './components/DocumentPreview';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
-import ProtectedRoute from './components/ProtectedRoute';
-import { isAuthenticated, logout } from './services/authService';
+import { logout } from './services/authService';
 
 const html2pdf = (window as any).html2pdf;
 
@@ -27,16 +27,28 @@ const App: React.FC = () => {
   const [history, setHistory] = useState<SavedProject[]>([]);
 
   const [layoutSettings, setLayoutSettings] = useState<LayoutSettings>({
-    accentColor: '#000000',
-    backgroundColor: '#ffffff',
+    colorBackground: '#ffffff',
+    colorText: '#1a1a1a',
+    colorTitle: '#000000',
+    colorCard: '#f9f9f9',
+    colorCardText: '#1a1a1a',
+    colorCardAccent: '#000000',
     fontStyle: 'classic',
-    fontFamily: 'playfair',
+    fontTitle: 'playfair',
+    fontBody: 'inter',
+    baseFontSize: 16,
     showCover: true,
     showArchitecture: true,
     showDays: true,
     showImmersion: true,
     showFooter: true,
-    contentDensity: 'elegant'
+    backgroundPattern: 'none',
+    contentDensity: 'elegant',
+    companyName: 'STUDIO OS',
+    designerSignature: '',
+    socialMediaSignature: '',
+    watermarkOpacity: 0.1,
+    watermarkGrayscale: true
   });
 
   useEffect(() => {
@@ -52,7 +64,7 @@ const App: React.FC = () => {
 
   const handleLoginSuccess = () => {
     setAuthenticated(true);
-    setShowDashboard(false); // Ir direto para o app
+    setShowDashboard(false);
   };
 
   const handleLogout = () => {
@@ -79,13 +91,6 @@ const App: React.FC = () => {
     setDoc(project.doc);
     setLayoutSettings(project.settings);
     setStep('studio');
-  };
-
-  const deleteFromHistory = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    const updated = history.filter(p => p.id !== id);
-    setHistory(updated);
-    localStorage.setItem('editorial_history', JSON.stringify(updated));
   };
 
   const handleGenerate = useCallback(async (mode: AIWorkflowMode) => {
@@ -125,20 +130,20 @@ const App: React.FC = () => {
     if (!element || !doc) return;
     setExporting(true);
     try {
-      element.classList.add('pdf-export-mode', 'pdf-mode-a2');
+      element.classList.add('pdf-export-mode', 'pdf-mode-a3');
       await new Promise(resolve => setTimeout(resolve, 800));
 
       const opt = {
         margin: 0,
-        filename: `${doc.title.toLowerCase().replace(/\s/g, '-')}-a2-elite.pdf`,
+        filename: `${doc.title.toLowerCase().replace(/\s/g, '-')}-a3-elite.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: {
           scale: 2,
           useCORS: true,
-          windowWidth: 1587,
+          windowWidth: 1122, 
           letterRendering: true
         },
-        jsPDF: { unit: 'mm', format: 'a2', orientation: 'portrait' },
+        jsPDF: { unit: 'mm', format: 'a3', orientation: 'portrait' },
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
       };
 
@@ -146,7 +151,7 @@ const App: React.FC = () => {
     } catch (err) {
       setError('Erro ao exportar PDF.');
     } finally {
-      element.classList.remove('pdf-export-mode', 'pdf-mode-a2');
+      element.classList.remove('pdf-export-mode', 'pdf-mode-a3');
       setExporting(false);
     }
   };
@@ -158,14 +163,45 @@ const App: React.FC = () => {
     setError(null);
   };
 
-  // Se não estiver autenticado, mostrar tela de login
+  const renderColorPicker = (label: string, key: keyof LayoutSettings) => (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <label className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400">{label}</label>
+        <span className="text-[9px] font-mono text-gray-300 uppercase">{layoutSettings[key] as string}</span>
+      </div>
+      <div className="flex items-center gap-3">
+        <input 
+          type="color" 
+          value={layoutSettings[key] as string} 
+          onChange={(e) => updateLayout(key, e.target.value)}
+          className="w-10 h-10 rounded-full border-none p-0 cursor-pointer overflow-hidden bg-transparent"
+        />
+        <div className="flex-1 h-px bg-gray-100" />
+      </div>
+    </div>
+  );
+
+  const renderFontSelector = (label: string, key: keyof LayoutSettings) => (
+    <div className="space-y-4">
+      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400">{label}</label>
+      <select 
+        value={layoutSettings[key] as string} 
+        onChange={(e) => updateLayout(key, e.target.value)}
+        className="w-full p-4 text-[10px] font-black uppercase tracking-widest border border-gray-100 bg-gray-50 outline-none"
+      >
+        <option value="playfair">Playfair Display (Serif)</option>
+        <option value="syne">Syne (Modern)</option>
+        <option value="inter">Inter (Sans)</option>
+        <option value="montserrat">Montserrat</option>
+        <option value="caveat">Caveat (Handwriting)</option>
+        <option value="cormorant">Cormorant Garamond</option>
+        <option value="jetbrains">JetBrains Mono</option>
+      </select>
+    </div>
+  );
+
   if (!authenticated) {
     return <Login onLoginSuccess={handleLoginSuccess} />;
-  }
-
-  // Se quiser mostrar dashboard ao invés do app principal
-  if (showDashboard) {
-    return <Dashboard onLogout={handleLogout} />;
   }
 
   return (
@@ -185,23 +221,16 @@ const App: React.FC = () => {
               NOVO PROJETO
             </button>
             <div className="w-px h-6 bg-gray-100" />
-            <button
-              onClick={handleLogout}
-              className="text-[10px] font-black uppercase tracking-widest text-gray-600 hover:text-black transition-all"
-            >
-              SAIR
-            </button>
-            <div className="w-px h-6 bg-gray-100" />
             <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded border border-gray-100">
               <span className="text-[9px] font-black uppercase text-gray-400">FORMATO:</span>
-              <span className="text-[10px] font-black uppercase text-black">A2 PROFISSIONAL</span>
+              <span className="text-[10px] font-black uppercase text-black">A3 ESTRATÉGICO</span>
             </div>
             <button
               onClick={exportAsPDF}
               disabled={exporting}
               className="px-12 py-3.5 bg-black text-white text-[10px] font-black uppercase tracking-[0.3em] hover:bg-gray-800 transition-all shadow-2xl disabled:bg-gray-400"
             >
-              {exporting ? 'GERANDO PDF...' : 'EXPORTAR EM A2'}
+              {exporting ? 'GERANDO PDF...' : 'EXPORTAR EM A3'}
             </button>
           </div>
         )}
@@ -215,6 +244,28 @@ const App: React.FC = () => {
                 <h2 className="serif text-4xl font-light italic">Seja bem-vindo.</h2>
                 <p className="text-[10px] text-gray-400 uppercase tracking-[0.2em] leading-relaxed">Transforme estratégia bruta em design irrefutável.</p>
               </div>
+              
+              {history.length > 0 && (
+                <div className="space-y-5">
+                  <h3 className="text-[9px] font-black uppercase tracking-[0.4em] text-gray-300">PROJETOS RECENTES</h3>
+                  <div className="space-y-3">
+                    {history.map(project => (
+                      <div 
+                        key={project.id} 
+                        onClick={() => loadFromHistory(project)}
+                        className="p-5 border border-gray-100 bg-gray-50/50 hover:border-black cursor-pointer transition-all flex justify-between items-center group"
+                      >
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-black uppercase tracking-widest group-hover:underline">{project.doc.title}</p>
+                          <p className="text-[8px] text-gray-400 uppercase font-bold">{new Date(project.timestamp).toLocaleString('pt-BR')}</p>
+                        </div>
+                        <span className="text-[9px] opacity-0 group-hover:opacity-100 transition-all">ABRIR →</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 gap-5">
                 <button onClick={() => setStep('entrada-ia')} className="group p-10 border border-gray-100 text-left hover:border-black transition-all hover:shadow-2xl bg-gray-50/50">
                   <span className="text-[9px] font-black uppercase tracking-[0.4em] text-gray-300 group-hover:text-black mb-6 block">FLUXO CRIATIVO</span>
@@ -247,10 +298,10 @@ const App: React.FC = () => {
             <div className="flex flex-col h-full bg-white">
               <nav className="flex border-b border-gray-100 bg-gray-50">
                 <button onClick={() => setStudioTab('conteudo')} className={`flex-1 py-6 text-[10px] font-black uppercase tracking-[0.2em] relative ${studioTab === 'conteudo' ? 'bg-white text-black' : 'text-gray-400'}`}>
-                  1. TEXTOS E CÓPIAS
+                  1. CONTEÚDO
                 </button>
                 <button onClick={() => setStudioTab('estilo')} className={`flex-1 py-6 text-[10px] font-black uppercase tracking-[0.2em] relative ${studioTab === 'estilo' ? 'bg-white text-black' : 'text-gray-400'}`}>
-                  2. DESIGN E ESTILO
+                  2. PERSONALIZAÇÃO
                 </button>
               </nav>
 
@@ -261,6 +312,35 @@ const App: React.FC = () => {
                       <label className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-300">TÍTULO PRINCIPAL</label>
                       <input type="text" value={doc.title} onChange={(e) => updateDoc('title', e.target.value)} className="w-full p-4 text-xs border bg-gray-50 font-black uppercase tracking-widest outline-none" />
                     </div>
+
+                    <div className="space-y-4">
+                      <label className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-300">SUBTÍTULO / PROMESSA</label>
+                      <input type="text" value={doc.subtitle} onChange={(e) => updateDoc('subtitle', e.target.value)} className="w-full p-4 text-xs border bg-gray-50 outline-none" />
+                    </div>
+
+                    <div className="space-y-4">
+                      <label className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-300">FRASE DE POSICIONAMENTO</label>
+                      <input type="text" value={doc.positionPhrase} onChange={(e) => updateDoc('positionPhrase', e.target.value)} className="w-full p-4 text-xs border bg-gray-50 outline-none" />
+                    </div>
+
+                    <div className="p-6 bg-gray-50 space-y-6 border border-gray-100">
+                       <label className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-300">ARQUITETURA ESTRATÉGICA</label>
+                       <div className="space-y-4">
+                          <div className="space-y-2">
+                             <label className="text-[8px] font-black text-gray-400 uppercase">ATMOSFERA (FEELING)</label>
+                             <input type="text" value={doc.architecture.feeling} onChange={(e) => updateDoc('architecture', { ...doc.architecture, feeling: e.target.value })} className="w-full p-3 text-[10px] border" />
+                          </div>
+                          <div className="space-y-2">
+                             <label className="text-[8px] font-black text-gray-400 uppercase">FOCO DE DOR</label>
+                             <input type="text" value={doc.architecture.pain} onChange={(e) => updateDoc('architecture', { ...doc.architecture, pain: e.target.value })} className="w-full p-3 text-[10px] border" />
+                          </div>
+                          <div className="space-y-2">
+                             <label className="text-[8px] font-black text-gray-400 uppercase">AUTORIDADE</label>
+                             <input type="text" value={doc.architecture.authority} onChange={(e) => updateDoc('architecture', { ...doc.architecture, authority: e.target.value })} className="w-full p-3 text-[10px] border" />
+                          </div>
+                       </div>
+                    </div>
+
                     <div className="space-y-5">
                       <label className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-300">DIAS DA SEMANA</label>
                       {doc.days.map((day, idx) => (
@@ -271,20 +351,78 @@ const App: React.FC = () => {
                           </button>
                           {editingDayIdx === idx && (
                             <div className="p-6 bg-gray-50 space-y-6 animate-in slide-in-from-top duration-300">
-                              <textarea value={day.caption} onChange={(e) => updateDay(idx, 'caption', e.target.value)} className="w-full h-48 p-4 text-xs border bg-white outline-none font-light leading-relaxed" />
+                               <div className="grid grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                      <label className="text-[8px] font-black text-gray-400 uppercase">FORMATO</label>
+                                      <input type="text" value={day.format} onChange={(e) => updateDay(idx, 'format', e.target.value)} className="w-full p-3 text-[10px] border" />
+                                  </div>
+                                  <div className="space-y-2">
+                                      <label className="text-[8px] font-black text-gray-400 uppercase">TEMA</label>
+                                      <input type="text" value={day.theme} onChange={(e) => updateDay(idx, 'theme', e.target.value)} className="w-full p-3 text-[10px] border" />
+                                  </div>
+                               </div>
+                               <div className="space-y-2">
+                                  <label className="text-[8px] font-black text-gray-400 uppercase">BRIEFING CRIATIVO</label>
+                                  <textarea value={day.creativeDirection} onChange={(e) => updateDay(idx, 'creativeDirection', e.target.value)} className="w-full h-24 p-3 text-[10px] border" />
+                               </div>
+                               <div className="space-y-2">
+                                  <label className="text-[8px] font-black text-gray-400 uppercase">LEGENDA</label>
+                                  <textarea value={day.caption} onChange={(e) => updateDay(idx, 'caption', e.target.value)} className="w-full h-48 p-4 text-xs border bg-white outline-none font-light leading-relaxed" />
+                               </div>
                             </div>
                           )}
                         </div>
                       ))}
                     </div>
+
+                    <div className="space-y-4">
+                      <label className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-300">VEREDITO / OBSERVAÇÃO FINAL</label>
+                      <textarea value={doc.observation} onChange={(e) => updateDoc('observation', e.target.value)} className="w-full h-32 p-4 text-xs border bg-gray-50 outline-none font-light leading-relaxed" />
+                    </div>
                   </div>
                 )}
 
                 {studioTab === 'estilo' && (
-                  <div className="space-y-12">
-                    {/* ESTILO DE LAYOUT */}
+                  <div className="space-y-12 pb-20">
+                    <div className="p-8 border border-gray-100 bg-gray-50/50 space-y-8">
+                       <h4 className="text-[10px] font-black uppercase tracking-[0.4em]">IDENTIDADE E MARCA</h4>
+                       <div className="space-y-6">
+                          <div className="space-y-3">
+                            <label className="text-[9px] font-black uppercase text-gray-400 tracking-widest">NOME DA EMPRESA (FOOTER)</label>
+                            <input type="text" value={layoutSettings.companyName} onChange={e => updateLayout('companyName', e.target.value)} className="w-full p-4 text-[10px] border outline-none font-bold" />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-3">
+                              <label className="text-[9px] font-black uppercase text-gray-400 tracking-widest">ASSINATURA DESIGNER</label>
+                              <input type="text" value={layoutSettings.designerSignature} onChange={e => updateLayout('designerSignature', e.target.value)} className="w-full p-4 text-[10px] border outline-none" />
+                            </div>
+                            <div className="space-y-3">
+                              <label className="text-[9px] font-black uppercase text-gray-400 tracking-widest">ASSINATURA S.M.</label>
+                              <input type="text" value={layoutSettings.socialMediaSignature} onChange={e => updateLayout('socialMediaSignature', e.target.value)} className="w-full p-4 text-[10px] border outline-none" />
+                            </div>
+                          </div>
+                          <div className="space-y-3">
+                            <label className="text-[9px] font-black uppercase text-gray-400 tracking-widest">URL MARCA D'ÁGUA (IMAGEM)</label>
+                            <input type="text" value={layoutSettings.watermarkImage} onChange={e => updateLayout('watermarkImage', e.target.value)} className="w-full p-4 text-[10px] border outline-none font-mono" placeholder="https://..." />
+                          </div>
+                       </div>
+                    </div>
+
+                     <div className="space-y-8">
+                        <label className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-300">PALETA ESTRATÉGICA</label>
+                        <div className="grid grid-cols-1 gap-8">
+                           {renderColorPicker('Cor de Fundo (Papel)', 'colorBackground')}
+                           {renderColorPicker('Cor do Texto Geral', 'colorText')}
+                           {renderColorPicker('Cor dos Títulos (Destaque)', 'colorTitle')}
+                           <div className="h-px bg-gray-100 my-4" />
+                           {renderColorPicker('Fundo dos Cards', 'colorCard')}
+                           {renderColorPicker('Texto dentro dos Cards', 'colorCardText')}
+                           {renderColorPicker('Destaque dos Cards', 'colorCardAccent')}
+                        </div>
+                     </div>
+
                     <div className="space-y-6">
-                      <label className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-300">CONCEITO VISUAL</label>
+                      <label className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-300">ESTILO DO CONJUNTO</label>
                       <div className="grid grid-cols-3 gap-3">
                         {[
                           { id: 'classic', label: 'CLÁSSICO' },
@@ -302,62 +440,56 @@ const App: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* FONTES */}
+                    <div className="grid grid-cols-1 gap-8">
+                       {renderFontSelector('Fonte dos Títulos', 'fontTitle')}
+                       {renderFontSelector('Fonte do Corpo', 'fontBody')}
+                    </div>
+
                     <div className="space-y-6">
-                      <label className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-300">FAMÍLIA DE FONTES</label>
-                      <div className="grid grid-cols-2 gap-3">
+                      <label className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-300">PADRÃO DE FUNDO</label>
+                      <select 
+                        value={layoutSettings.backgroundPattern} 
+                        onChange={(e) => updateLayout('backgroundPattern', e.target.value)}
+                        className="w-full p-4 text-[10px] font-black uppercase tracking-widest border border-gray-100 bg-gray-50 outline-none"
+                      >
+                        <option value="none">SÓLIDO (SEM PADRÃO)</option>
+                        <option value="morangos">DIAGONAIS SUTIS</option>
+                        <option value="pontinhos">PONTINHOS MINIMALISTAS</option>
+                        <option value="grid">GRID TÉCNICO</option>
+                        <option value="ondas">ONDAS DINÂMICAS</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-6">
+                      <label className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-300">DENSIDADE DO CONTEÚDO</label>
+                      <div className="grid grid-cols-3 gap-3">
                         {[
-                          { id: 'playfair', label: 'Playfair Display', class: 'serif' },
-                          { id: 'syne', label: 'Syne (Bold)', class: 'syne' },
-                          { id: 'inter', label: 'Inter (Sans)', class: 'font-sans' },
-                          { id: 'montserrat', label: 'Montserrat', class: 'montserrat' }
-                        ].map(f => (
+                          { id: 'compact', label: 'COMPACTO' },
+                          { id: 'elegant', label: 'ELEGANTE' },
+                          { id: 'spacious', label: 'ESPAÇADO' }
+                        ].map(d => (
                           <button
-                            key={f.id}
-                            onClick={() => updateLayout('fontFamily', f.id)}
-                            className={`p-4 border text-left transition-all ${layoutSettings.fontFamily === f.id ? 'border-black bg-black text-white' : 'border-gray-100 bg-white text-gray-600'}`}
+                            key={d.id}
+                            onClick={() => updateLayout('contentDensity', d.id)}
+                            className={`py-4 border text-[9px] font-black transition-all ${layoutSettings.contentDensity === d.id ? 'bg-black text-white border-black' : 'bg-white text-gray-400 border-gray-100'}`}
                           >
-                            <span className={`${f.class} text-xs font-bold`}>{f.label}</span>
+                            {d.label}
                           </button>
                         ))}
                       </div>
                     </div>
 
-                    {/* COR DE ACENTO */}
-                    <div className="space-y-6">
-                      <label className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-300">COR DE DESTAQUE</label>
-                      <div className="flex flex-wrap gap-3">
-                        {['#000000', '#D4AF37', '#7F1D1D', '#065F46', '#1E3A8A', '#4F46E5'].map(color => (
-                          <button
-                            key={color}
-                            onClick={() => updateLayout('accentColor', color)}
-                            className={`w-10 h-10 rounded-full border-2 transition-all ${layoutSettings.accentColor === color ? 'border-black scale-110 shadow-lg' : 'border-transparent opacity-60'}`}
-                            style={{ backgroundColor: color }}
-                          />
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* COR DE FUNDO */}
-                    <div className="space-y-6">
-                      <label className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-300">COR DO PAPEL (FUNDO)</label>
-                      <div className="flex flex-wrap gap-3">
-                        {[
-                          { id: '#ffffff', label: 'Branco' },
-                          { id: '#fcf8f0', label: 'Vintage' },
-                          { id: '#f2f2f2', label: 'Estúdio' },
-                          { id: '#0a0a0a', label: 'Dark' }
-                        ].map(bg => (
-                          <button
-                            key={bg.id}
-                            onClick={() => updateLayout('backgroundColor', bg.id)}
-                            className={`w-12 h-12 rounded border-2 transition-all flex items-center justify-center ${layoutSettings.backgroundColor === bg.id ? 'border-black' : 'border-gray-100'}`}
-                            style={{ backgroundColor: bg.id }}
-                          >
-                            <span className={`text-[8px] font-black ${bg.id === '#0a0a0a' ? 'text-white' : 'text-black'}`}>{bg.label}</span>
-                          </button>
-                        ))}
-                      </div>
+                    <div className="space-y-4">
+                       <div className="flex justify-between items-center">
+                          <label className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-300">ESCALA DA FONTE</label>
+                          <span className="text-[10px] font-black">{layoutSettings.baseFontSize}px</span>
+                       </div>
+                       <input 
+                          type="range" min="12" max="24" step="1" 
+                          value={layoutSettings.baseFontSize} 
+                          onChange={e => updateLayout('baseFontSize', parseInt(e.target.value))}
+                          className="w-full h-1 bg-gray-100 appearance-none outline-none cursor-pointer"
+                       />
                     </div>
                   </div>
                 )}
