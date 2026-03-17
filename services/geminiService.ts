@@ -5,7 +5,7 @@ import { EditorialDocument } from "../types";
 export type AIWorkflowMode = 'generative' | 'structural';
 
 const SYSTEM_INSTRUCTION_GENERATIVE = `Você é o Diretor Criativo de uma Agência de Social Media de Elite.
-Sua missão é transformar um briefing básico em um Planejamento Editorial Irrefutável de 7 dias.
+Sua missão é transformar um briefing básico em um Planejamento Editorial Irrefutável e Estratégico.
 Crie ganchos magnéticos, legendas que vendem e direções de arte que elevam o posicionamento do cliente.
 Use português do Brasil, tom sofisticado, direto e extremamente claro.
 Para Reels: Foque em vídeos dinâmicos com transições e sugestões de áudio que prendam a atenção nos primeiros 3 segundos.`;
@@ -16,11 +16,13 @@ NÃO invente novos temas. Seja fiel ao conteúdo fornecido, mas organize-o com p
 
 const COMMON_RULES = `
 REGRAS DE OURO:
-1. CRONOGRAMA: Gere sempre conteúdo para os 7 dias da semana.
+1. CRONOGRAMA: Gere conteúdo para o número de sessões solicitado ou sugerido (mínimo 1, padrão 7 se não especificado).
 2. LINGUAGEM: Use termos como "Gancho de Atenção", "Legenda Persuasiva" e "Direção de Arte".
-3. ESTRUTURA: Siga o esquema JSON rigorosamente.
-4. STORIES: Todo dia deve ter um plano de 3 a 5 sequências de stories focadas em engajamento ou venda.
-5. REELS: Inclua sempre o campo 'transition' (ex: corte seco, zoom lento) e 'audioSuggestion' (ex: áudio em alta, trilha elegante).`;
+3. FORMATOS: Use EXCLUSIVAMENTE estes formatos: 'REELS', 'CARROSSEL', 'POST', 'FOTO', 'MEME'.
+4. ESTRUTURA: Siga o esquema JSON rigorosamente. Use 'sessions'.
+5. NOMENCLATURA: Identifique cada sessão como "SESSÃO 01", "SESSÃO 02", etc., no campo 'session'.
+6. STORIES: Toda sessão deve ter um plano de 3 a 5 sequências de stories focadas em engajamento ou venda.
+7. REELS: Inclua sempre o campo 'transition' (ex: corte seco, zoom lento) e 'audioSuggestion' (ex: áudio em alta, trilha elegante).`;
 
 export const structureContent = async (
   rawText: string, 
@@ -61,13 +63,13 @@ export const structureContent = async (
               },
               required: ["feeling", "pain", "authority"]
             },
-            days: {
+            sessions: {
               type: Type.ARRAY,
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  day: { type: Type.STRING },
-                  format: { type: Type.STRING, description: "Ex: Reels, Carrossel, Post Estático" },
+                  session: { type: Type.STRING },
+                  format: { type: Type.STRING, description: "Obrigatório um destes: REELS, CARROSSEL, POST, FOTO, MEME" },
                   theme: { type: Type.STRING },
                   strategicIntent: { type: Type.STRING },
                   creativeDirection: { type: Type.STRING },
@@ -127,37 +129,12 @@ export const structureContent = async (
                   storySuggestions: { type: Type.ARRAY, items: { type: Type.STRING } },
                   executionNotes: { type: Type.STRING }
                 },
-                required: ["day", "format", "theme", "strategicIntent", "creativeDirection", "caption", "viewerPsychology", "approachStrategy", "storySuggestions"]
+                required: ["session", "format", "theme", "strategicIntent", "creativeDirection", "caption", "viewerPsychology", "approachStrategy", "storySuggestions"]
               }
             },
-            immersion: {
-              type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING },
-                concept: { type: Type.STRING },
-                steps: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      visualStep: { type: Type.STRING },
-                      imageRef: { type: Type.STRING },
-                      cardText: { type: Type.STRING },
-                      objective: { type: Type.STRING },
-                      expectedResult: { type: Type.STRING }
-                    },
-                    required: ["visualStep", "imageRef", "cardText", "objective", "expectedResult"]
-                  }
-                },
-                caption: { type: Type.STRING },
-                reelsCover: { type: Type.STRING },
-                approachStrategy: { type: Type.STRING }
-              },
-              required: ["title", "concept", "steps", "caption", "reelsCover", "approachStrategy"]
-            },
-            observation: { type: Type.STRING }
+            observation: { type: Type.STRING, description: "Um 'Veredito do Diretor Criativo' curto e impactante sobre a estratégia global." }
           },
-          required: ["title", "subtitle", "positionPhrase", "architecture", "days", "observation"]
+          required: ["title", "subtitle", "positionPhrase", "architecture", "sessions", "observation"]
         }
       }
     });

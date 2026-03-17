@@ -14,11 +14,9 @@ export interface LayoutSettings {
   fontBody: 'playfair' | 'inter' | 'syne' | 'montserrat' | 'caveat' | 'cormorant' | 'jetbrains';
   baseFontSize: number;
   
-  // Visibilidade de Seções
-  showCover: boolean;
-  showArchitecture: boolean;
   showDays: boolean;
-  showImmersion: boolean;
+  showArchitecture: boolean;
+  showCover: boolean;
   showFooter: boolean;
   
   // Branding e Personalização
@@ -28,10 +26,19 @@ export interface LayoutSettings {
   watermarkGrayscale?: boolean;
   designerSignature?: string;
   socialMediaSignature?: string;
+  agencySignature?: string;
   companyName?: string;
+  
+  showObservation?: boolean;
   
   // Densidade
   contentDensity: 'compact' | 'elegant' | 'spacious';
+  
+  // Nomenclatura das Sessões
+  sessionLabelType: 'sessao' | 'dia' | 'post' | 'sequencia' | 'aula' | 'modulo';
+
+  // Presets
+  preset?: string;
 }
 
 export interface SavedProject {
@@ -50,8 +57,7 @@ export interface EditorialDocument {
     pain: string;
     authority: string;
   };
-  days: DayPlan[];
-  immersion?: ImmersionBlock;
+  sessions: SessionPlan[];
   observation: string;
 }
 
@@ -76,8 +82,8 @@ export interface ReelsScript {
   cta: string;
 }
 
-export interface DayPlan {
-  day: string;
+export interface SessionPlan {
+  session: string;
   format: string;
   theme: string;
   strategicIntent: string;
@@ -101,17 +107,3 @@ export interface DayPlan {
   executionNotes?: string;
 }
 
-export interface ImmersionBlock {
-  title: string;
-  concept: string;
-  steps: {
-    visualStep: string;
-    imageRef: string;
-    cardText: string;
-    objective: string;
-    expectedResult: string;
-  }[];
-  caption: string;
-  reelsCover: string;
-  approachStrategy: string;
-}

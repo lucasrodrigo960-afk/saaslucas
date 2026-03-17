@@ -19,22 +19,54 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, settings: rawSet
     return yiq < 128;
   };
 
-  const getLuminance = (hex: string) => {
-    let color = (hex || '').replace('#', '');
-    if (color.length === 3) color = color.split('').map(c => c + c).join('');
-    const rgb = color.match(/.{1,2}/g)?.map(x => parseInt(x, 16) / 255) || [0, 0, 0];
-    const [r, g, b] = rgb.map(c => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  const getLuminance = (colorStr: string, underlyingColor?: string) => {
+    if (!colorStr) return 0;
+    
+    let r, g, b;
+
+    if (colorStr.startsWith('rgba')) {
+      const match = colorStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+      if (match) {
+        const ar = parseInt(match[1]);
+        const ag = parseInt(match[2]);
+        const ab = parseInt(match[3]);
+        const alpha = match[4] ? parseFloat(match[4]) : 1;
+        
+        if (alpha < 1 && underlyingColor) {
+          // Blend with underlying color
+          const bgHex = underlyingColor.replace('#', '');
+          const br = parseInt(bgHex.substr(0, 2), 16) || 0;
+          const bg = parseInt(bgHex.substr(2, 2), 16) || 0;
+          const bb = parseInt(bgHex.substr(4, 2), 16) || 0;
+          
+          r = (ar * alpha + br * (1 - alpha)) / 255;
+          g = (ag * alpha + bg * (1 - alpha)) / 255;
+          b = (ab * alpha + bb * (1 - alpha)) / 255;
+        } else {
+          r = ar / 255; g = ag / 255; b = ab / 255;
+        }
+      } else {
+        return 0;
+      }
+    } else {
+      let hex = colorStr.replace('#', '');
+      if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+      r = (parseInt(hex.substr(0, 2), 16) || 0) / 255;
+      g = (parseInt(hex.substr(2, 2), 16) || 0) / 255;
+      b = (parseInt(hex.substr(4, 2), 16) || 0) / 255;
+    }
+
+    const [rr, gg, bb] = [r, g, b].map(c => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+    return 0.2126 * rr + 0.7152 * gg + 0.0722 * bb;
   };
 
-  const getSafeColor = (bgHex: string, textHex: string) => {
-    const bgLum = getLuminance(bgHex);
+  const getSafeColor = (bgHex: string, textHex: string, underlyingDocBg?: string) => {
+    const bgLum = underlyingDocBg ? getLuminance(bgHex, underlyingDocBg) : getLuminance(bgHex);
     const textLum = getLuminance(textHex);
     const lighter = Math.max(bgLum, textLum);
     const darker = Math.min(bgLum, textLum);
     const ratio = (lighter + 0.05) / (darker + 0.05);
-    // Se o contraste for menor que 3.5:1, forçamos legibilidade.
-    if (ratio < 3.5) return bgLum > 0.5 ? '#1a1a1a' : '#fcfcfc';
+    if (ratio < 4.5) return bgLum > 0.5 ? '#1a1a1a' : '#fcfcfc';
     return textHex;
   };
 
@@ -42,9 +74,8 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, settings: rawSet
     ...rawSettings,
     colorText: getSafeColor(rawSettings.colorBackground, rawSettings.colorText),
     colorTitle: getSafeColor(rawSettings.colorBackground, rawSettings.colorTitle),
-    colorCardText: getSafeColor(rawSettings.colorCard, rawSettings.colorCardText),
-    // Garantir que a tag/destaque do card seja legível no card
-    colorCardAccent: getSafeColor(rawSettings.colorCard, rawSettings.colorCardAccent),
+    colorCardText: getSafeColor(rawSettings.colorCard, rawSettings.colorCardText, rawSettings.colorBackground),
+    colorCardAccent: getSafeColor(rawSettings.colorCard, rawSettings.colorCardAccent, rawSettings.colorBackground),
   };
   
   const isBgDark = isDarkColor(settings.colorBackground);
@@ -71,13 +102,13 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, settings: rawSet
   const styleSettings = {
     classic: {
       heading: `${familyClasses[settings.fontTitle] || 'serif'} font-bold uppercase tracking-tight`,
-      border: `border-l-8 pl-12`,
+      border: `border-l-4 pl-12`,
       decoration: true,
       cardPadding: 'p-8'
     },
     modern: {
-      heading: `${familyClasses[settings.fontTitle] || 'syne'} font-black uppercase tracking-tighter scale-y-110`,
-      border: `border-t-8 pt-12`,
+      heading: `${familyClasses[settings.fontTitle] || 'syne'} font-bold uppercase tracking-tighter scale-y-105`,
+      border: `border-t-4 pt-12`,
       decoration: true,
       cardPadding: 'p-10'
     },
@@ -94,7 +125,7 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, settings: rawSet
   const getBackgroundPattern = () => {
     const bgColor = settings.colorBackground.replace('#', '%23');
     const shapeColor = isBgDark ? '%23ffffff' : '%23000000';
-    const opacity = isBgDark ? '0.05' : '0.04';
+    const opacity = isBgDark ? '0.04' : '0.03';
     
     switch (settings.backgroundPattern) {
       case 'morangos':
@@ -104,9 +135,9 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, settings: rawSet
       case 'ondas':
         return `url("data:image/svg+xml,%3Csvg width='100' height='20' viewBox='0 0 100 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M21.184 20c.392-5.33 4.254-9.236 9.58-9.95C36.032 9.33 39.992 5.1 40 0v20zM0 0v20h21.184c-.392-5.33-4.254-9.236-9.58-9.95C6.336 9.33 2.376 5.1 2 0z' fill='${shapeColor}' fill-opacity='${opacity}' fill-rule='evenodd'/%3E%3C/svg%3E")`;
       case 'pontinhos':
-        return `url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='2' cy='2' r='2' fill='${shapeColor}' fill-opacity='${opacity}'/%3E%3C/svg%3E")`;
+        return `url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='1' cy='1' r='0.5' fill='${shapeColor}' fill-opacity='${opacity}'/%3E%3C/svg%3E")`;
       case 'grid':
-        return `url("data:image/svg+xml,%3Csvg width='20' height='20' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M 20 0 L 0 0 0 20' fill='none' stroke='${shapeColor}' stroke-width='1' stroke-opacity='${opacity}'/%3E%3C/svg%3E")`;
+        return `url("data:image/svg+xml,%3Csvg width='30' height='30' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M 30 0 L 0 0 0 30' fill='none' stroke='${shapeColor}' stroke-width='0.5' stroke-opacity='${opacity}'/%3E%3C/svg%3E")`;
       default:
         return 'none';
     }
@@ -156,14 +187,14 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, settings: rawSet
               }}
             />
           )}
-          <h1 className={`${currentStyle.heading} text-5xl md:text-7xl mb-4 leading-tight`} style={{ color: settings.colorTitle }}>
+          <h1 className={`${currentStyle.heading} text-5xl md:text-7xl mb-4 leading-tight font-bold`} style={{ color: settings.colorTitle }}>
             {doc.title}
           </h1>
           <p className={`text-xl font-light mb-12 tracking-wide uppercase italic opacity-80`} style={{ color: settings.colorText }}>
             {doc.subtitle}
           </p>
           {currentStyle.decoration && <div className="h-px w-24 mb-6" style={{ backgroundColor: settings.colorTitle }}></div>}
-          <p className={`text-sm tracking-[0.3em] font-black uppercase`} style={{ color: settings.colorTitle }}>
+          <p className={`text-sm tracking-[0.3em] font-bold uppercase`} style={{ color: settings.colorTitle }}>
             {doc.positionPhrase}
           </p>
         </header>
@@ -171,13 +202,13 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, settings: rawSet
       {/* 2. ARQUITETURA ESTRATÉGICA */}
       {settings.showArchitecture && (
         <section className="mb-24 page-break-avoid">
-          <h2 className={`text-[10px] font-black tracking-[0.4em] uppercase mb-8 flex items-center gap-4`} style={{ color: settings.colorTitle }}>
+          <h2 className={`text-[10px] font-bold tracking-[0.4em] uppercase mb-8 flex items-center gap-4`} style={{ color: settings.colorTitle }}>
             ESTRATÉGIA BASE <span className={`h-px flex-1`} style={{ backgroundColor: docBorderColor }}></span>
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {['Atmosfera', 'Foco de Dor', 'Autoridade'].map((key, i) => (
               <div key={i} className={`${currentStyle.cardPadding} border`} style={{ backgroundColor: settings.colorCard, borderColor: cardBorderColor, color: settings.colorCardText }}>
-                <span className={`text-[9px] uppercase tracking-widest block mb-3 font-black`} style={{ color: settings.colorTitle }}>{key}</span>
+                <span className={`text-[9px] uppercase tracking-widest block mb-3 font-bold`} style={{ color: settings.colorTitle }}>{key}</span>
                 <p className="text-base font-medium leading-relaxed">
                   {i === 0 ? doc.architecture.feeling : i === 1 ? doc.architecture.pain : doc.architecture.authority}
                 </p>
@@ -190,10 +221,10 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, settings: rawSet
       {/* 3. CALENDÁRIO DIÁRIO */}
       {settings.showDays && (
         <section className="space-y-32 mb-32 relative z-10">
-          <h2 className={`text-[10px] font-black tracking-[0.4em] uppercase mb-0 flex items-center gap-4`} style={{ color: settings.colorTitle }}>
+          <h2 className={`text-[10px] font-bold tracking-[0.4em] uppercase mb-0 flex items-center gap-4`} style={{ color: settings.colorTitle }}>
             PLANO DE EXECUÇÃO <span className={`h-px flex-1`} style={{ backgroundColor: docBorderColor }}></span>
           </h2>
-          {doc.days.map((dayPlan, idx) => (
+          {doc.sessions.map((sessionPlan, idx) => (
             <div key={idx} className={`border-t pt-16 page-break-avoid relative overflow-hidden`} style={{ borderColor: docBorderColor }}>
               
               {settings.watermarkImage && (
@@ -209,12 +240,12 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, settings: rawSet
               )}
 
               <div className="flex flex-col md:flex-row justify-between items-baseline mb-12 gap-4 relative z-10">
-                <h3 className={`${currentStyle.heading} text-5xl font-black`} style={{ color: settings.colorTitle }}>
-                  {dayPlan.day}
+                <h3 className={`${currentStyle.heading} text-5xl font-bold`} style={{ color: settings.colorTitle }}>
+                  {settings.sessionLabelType.toUpperCase()} {idx + 1 < 10 ? `0${idx + 1}` : idx + 1}
                 </h3>
                 <div className="flex gap-4 items-center">
-                  <span className="px-5 py-2 text-white text-[10px] font-black uppercase tracking-[0.3em]" style={{ backgroundColor: settings.colorCardAccent, color: settings.colorCardText }}>
-                    {dayPlan.format}
+                  <span className="px-5 py-2 text-white text-[10px] font-bold uppercase tracking-[0.3em]" style={{ backgroundColor: settings.colorCardAccent, color: settings.colorCardText }}>
+                    {sessionPlan.format}
                   </span>
                 </div>
               </div>
@@ -224,21 +255,21 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, settings: rawSet
                 <div className="lg:col-span-4 space-y-10">
                   <div className="space-y-8">
                     <div>
-                      <p className={`text-[10px] font-black uppercase tracking-widest mb-2`} style={{ color: settings.colorTitle }}>Tema Principal</p>
-                      <p className="text-sm font-bold leading-relaxed">{dayPlan.theme}</p>
+                      <p className={`text-[10px] font-bold uppercase tracking-widest mb-2`} style={{ color: settings.colorTitle }}>Tema Principal</p>
+                      <p className="text-sm font-bold leading-relaxed">{sessionPlan.theme}</p>
                     </div>
                     <div className={`p-6 border-l-4`} style={{ backgroundColor: settings.colorCard, color: settings.colorCardText, borderColor: settings.colorCardAccent }}>
-                      <p className={`text-[9px] font-black uppercase tracking-widest mb-2`} style={{ color: settings.colorTitle }}>Briefing Criativo</p>
-                      <p className={`text-[11px] font-medium leading-relaxed opacity-80`}>{dayPlan.creativeDirection}</p>
+                      <p className={`text-[9px] font-bold uppercase tracking-widest mb-2`} style={{ color: settings.colorTitle }}>Briefing Criativo</p>
+                      <p className={`text-[11px] font-medium leading-relaxed opacity-80`}>{sessionPlan.creativeDirection}</p>
                     </div>
                   </div>
 
                   <div className={`p-8 shadow-2xl`} style={{ backgroundColor: settings.colorTitle, color: settings.colorBackground }}>
-                    <p className={`text-[9px] font-black uppercase tracking-[0.4em] mb-6 border-b pb-2`} style={{ borderColor: settings.colorBackground }}>
+                    <p className={`text-[9px] font-bold uppercase tracking-[0.4em] mb-6 border-b pb-2`} style={{ borderColor: settings.colorBackground }}>
                       STORIES SUGERIDOS
                     </p>
                     <ul className="space-y-5">
-                      {dayPlan.storySuggestions.map((story, sIdx) => (
+                      {sessionPlan.storySuggestions.map((story, sIdx) => (
                         <li key={sIdx} className={`text-[11px] leading-relaxed relative pl-4 border-l`} style={{ borderColor: settings.colorBackground }}>
                           {story}
                         </li>
@@ -250,33 +281,33 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, settings: rawSet
                 {/* LADO DIREITO: DESIGN E CONTEÚDO */}
                 <div className="lg:col-span-8 space-y-12">
                   
-                  {dayPlan.reelsScript ? (
+                  {sessionPlan.reelsScript ? (
                     <div className={`p-8 border-b-8 shadow-2xl`} style={{ backgroundColor: settings.colorCard, color: settings.colorCardText, borderColor: settings.colorTitle }}>
                       <div className="flex justify-between items-center mb-10 border-b pb-4" style={{ borderColor: docBorderColor }}>
-                        <p className="text-[10px] font-black uppercase tracking-[0.5em]" style={{ color: settings.colorTitle }}>REELS SCRIPT</p>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.4em]" style={{ color: settings.colorTitle }}>REELS SCRIPT</p>
                         <span className="text-[9px] font-mono opacity-50">ID: {idx+1}</span>
                       </div>
                       
                       <div className="mb-10 p-6 border-l-4" style={{ backgroundColor: settings.colorBackground, borderColor: settings.colorTitle }}>
-                        <p className="text-[9px] uppercase font-black mb-2 tracking-[0.2em] opacity-60">GANCHO (0-3s)</p>
+                        <p className="text-[9px] uppercase font-bold mb-2 tracking-[0.2em] opacity-60">GANCHO (0-3s)</p>
                         <p className={`${currentStyle.heading.includes('syne') ? 'syne' : 'serif'} text-2xl italic tracking-tighter`}>
-                          "{dayPlan.reelsScript.hook}"
+                          "{sessionPlan.reelsScript.hook}"
                         </p>
                       </div>
                       
                       <div className="space-y-12">
-                        {dayPlan.reelsScript.scenes.map((scene) => (
+                        {sessionPlan.reelsScript.scenes.map((scene) => (
                           <div key={scene.sceneNumber} className="relative pl-12 border-l" style={{ borderColor: docBorderColor }}>
-                            <span className="absolute -left-3 top-0 text-[36px] font-black leading-none opacity-20" style={{ color: settings.colorTitle }}>
+                            <span className="absolute -left-3 top-0 text-[36px] font-bold leading-none opacity-20" style={{ color: settings.colorTitle }}>
                               {scene.sceneNumber}
                             </span>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                               <div className="space-y-4">
-                                <p className="text-[8px] uppercase font-black opacity-60">AÇÃO VISUAL</p>
+                                <p className="text-[8px] uppercase font-bold opacity-60">AÇÃO VISUAL</p>
                                 <p className="text-[12px] leading-relaxed opacity-90">{scene.visualAction}</p>
                               </div>
                               <div className="space-y-4">
-                                <p className="text-[8px] uppercase font-black opacity-60">LOCUÇÃO</p>
+                                <p className="text-[8px] uppercase font-bold opacity-60">LOCUÇÃO</p>
                                 <p className="text-[12px] leading-relaxed italic font-semibold p-4 border" style={{ backgroundColor: settings.colorBackground, borderColor: docBorderColor, color: settings.colorText }}>
                                   {scene.audioSpeech}
                                 </p>
@@ -286,23 +317,23 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, settings: rawSet
                         ))}
                       </div>
                       <div className="mt-12 pt-8 border-t" style={{ borderColor: docBorderColor }}>
-                         <p className="text-xl font-black uppercase tracking-tighter" style={{ color: settings.colorTitle }}>{dayPlan.reelsScript.cta}</p>
+                         <p className="text-xl font-bold uppercase tracking-tighter" style={{ color: settings.colorTitle }}>{sessionPlan.reelsScript.cta}</p>
                       </div>
                     </div>
-                  ) : dayPlan.carouselSlides && dayPlan.carouselSlides.length > 0 ? (
+                  ) : sessionPlan.carouselSlides && sessionPlan.carouselSlides.length > 0 ? (
                     <div className="space-y-10">
                       <div className="flex items-center gap-4 mb-6">
-                        <p className={`text-[10px] font-black uppercase tracking-[0.4em] opacity-50`}>TELA DO CARROSSEL</p>
+                        <p className={`text-[10px] font-bold uppercase tracking-[0.4em] opacity-50`}>TELA DO CARROSSEL</p>
                         <div className={`h-px flex-1 ${isBgDark ? 'bg-white/10' : 'bg-gray-100'}`}></div>
                       </div>
-                      {dayPlan.carouselSlides.map((slide) => (
+                      {sessionPlan.carouselSlides.map((slide) => (
                         <div key={slide.slideNumber} className={`border shadow-sm hover:shadow-2xl transition-all page-break-avoid`} style={{ backgroundColor: settings.colorCard, borderColor: docBorderColor, color: settings.colorCardText }}>
                           <div className="flex justify-between items-center p-5 opacity-90 border-b" style={{ backgroundColor: settings.colorBackground, color: settings.colorTitle }}>
-                            <span className="text-[10px] font-black">TELA 0{slide.slideNumber}</span>
+                            <span className="text-[10px] font-bold">TELA {slide.slideNumber < 10 ? `0${slide.slideNumber}` : slide.slideNumber}</span>
                           </div>
                           <div className="p-10 grid grid-cols-1 md:grid-cols-2 gap-10">
                             <div className="space-y-4">
-                              <p className={`text-[10px] uppercase font-black opacity-50`}>DESIGNER BRIEF</p>
+                              <p className={`text-[10px] uppercase font-bold opacity-50`}>DESIGNER BRIEF</p>
                               <p className="text-[13px] font-bold leading-relaxed">{slide.visualDescription}</p>
                             </div>
                             <div className="flex flex-col">
@@ -316,17 +347,17 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, settings: rawSet
                         </div>
                       ))}
                     </div>
-                  ) : dayPlan.staticPostInfo ? (
+                  ) : sessionPlan.staticPostInfo ? (
                     <div className={`border shadow-2xl page-break-avoid overflow-hidden border-t-8`} style={{ backgroundColor: settings.colorCard, borderColor: settings.colorTitle, color: settings.colorCardText }}>
                       <div className="p-10 grid grid-cols-1 md:grid-cols-12 gap-12">
                         <div className="md:col-span-5 space-y-6">
-                           <p className={`text-[10px] uppercase font-black opacity-50`}>VISUAL CONCEPT</p>
-                           <p className="text-[14px] font-black leading-snug">{dayPlan.staticPostInfo.visualComposition}</p>
+                           <p className={`text-[10px] uppercase font-bold opacity-50`}>VISUAL CONCEPT</p>
+                           <p className="text-[14px] font-bold leading-snug">{sessionPlan.staticPostInfo.visualComposition}</p>
                         </div>
                         <div className="md:col-span-7">
                           <div className="flex-1 p-20 flex flex-col items-center justify-center text-center shadow-2xl text-white relative min-h-[300px]" style={{ backgroundColor: settings.colorTitle, color: settings.colorBackground }}>
                               <p className={`${currentStyle.heading} text-4xl italic leading-none z-10 drop-shadow-2xl`}>
-                                  {dayPlan.staticPostInfo.headlineOnCard}
+                                  {sessionPlan.staticPostInfo.headlineOnCard}
                               </p>
                           </div>
                         </div>
@@ -336,9 +367,9 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, settings: rawSet
 
                   {/* LEGENDA */}
                   <div className="page-break-avoid pt-12 border-t mt-12 border-gray-100">
-                    <p className={`text-[10px] font-black uppercase tracking-widest mb-6`} style={{ color: settings.colorTitle }}>LEGENDA FINAL</p>
+                    <p className={`text-[10px] font-bold uppercase tracking-widest mb-6`} style={{ color: settings.colorTitle }}>LEGENDA FINAL</p>
                     <div className={`border p-10 text-[16px] font-light leading-relaxed whitespace-pre-wrap italic`} style={{ backgroundColor: settings.colorBackground, borderColor: docBorderColor, color: settings.colorText }}>
-                      {dayPlan.caption}
+                      {sessionPlan.caption}
                     </div>
                   </div>
                 </div>
@@ -352,7 +383,7 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, settings: rawSet
       {settings.showFooter && (
         <footer className={`mt-40 pt-12 border-t page-break-avoid relative z-10`} style={{ borderColor: docBorderColor, color: settings.colorText }}>
           <div className="flex flex-col md:flex-row gap-8 items-end justify-between">
-              {doc.observation && (
+              {doc.observation && settings.showObservation && (
                 <p className={`${currentStyle.heading} text-2xl leading-snug flex-1 italic font-medium tracking-tight opacity-80`}>
                 "{doc.observation}"
                 </p>
@@ -362,7 +393,7 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, settings: rawSet
                 {settings.socialMediaSignature && (
                   <div className="flex flex-col items-end">
                      <span className={`text-[7px] uppercase tracking-[0.4em] opacity-50 mb-1 block`}>SOCIAL MEDIA</span>
-                     <span className={`${currentStyle.heading.includes('syne') ? 'syne' : 'serif'} text-xl italic tracking-tighter block mb-2`}>{settings.socialMediaSignature}</span>
+                     <span className={`${currentStyle.heading.includes('syne') ? 'syne' : 'serif'} text-lg italic tracking-tighter block mb-2 text-right`}>{settings.socialMediaSignature}</span>
                      <div className={`w-16 h-px ${isBgDark ? 'bg-white/20' : 'bg-black/20'}`}></div>
                   </div>
                 )}
@@ -370,13 +401,21 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({ doc, settings: rawSet
                 {settings.designerSignature && (
                   <div className="flex flex-col items-end">
                      <span className={`text-[7px] uppercase tracking-[0.4em] opacity-50 mb-1 block`}>DESIGNER</span>
-                     <span className={`${currentStyle.heading.includes('syne') ? 'syne' : 'serif'} text-xl italic tracking-tighter block mb-2`}>{settings.designerSignature}</span>
+                     <span className={`${currentStyle.heading.includes('syne') ? 'syne' : 'serif'} text-lg italic tracking-tighter block mb-2 text-right`}>{settings.designerSignature}</span>
+                     <div className={`w-16 h-px ${isBgDark ? 'bg-white/20' : 'bg-black/20'}`}></div>
+                  </div>
+                )}
+
+                {settings.agencySignature && (
+                  <div className="flex flex-col items-end">
+                     <span className={`text-[7px] uppercase tracking-[0.4em] opacity-50 mb-1 block`}>AGÊNCIA</span>
+                     <span className={`${currentStyle.heading.includes('syne') ? 'syne' : 'serif'} text-lg italic tracking-tighter block mb-2 text-right font-bold`}>{settings.agencySignature}</span>
                      <div className={`w-16 h-px ${isBgDark ? 'bg-white/20' : 'bg-black/20'}`}></div>
                   </div>
                 )}
 
                 <div className="flex flex-col items-end pl-8 border-l border-gray-200/30">
-                    <div className={`text-[8px] font-black uppercase tracking-[0.6em] opacity-80 mb-2`}>
+                    <div className={`text-[8px] font-bold uppercase tracking-[0.6em] opacity-80 mb-2`}>
                         {settings.companyName || 'STUDIO OS'}
                     </div>
                 </div>
